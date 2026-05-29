@@ -1,0 +1,21 @@
+[package]
+name = "blinky"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 LED blinky example"
+license = "MIT"
+
+[[bin]]
+name = "blinky"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { version = "0.1", git = "https://github.com/sanchuanhehe/ws63-pac" }
+ws63-hal = { version = "0.1", git = "https://github.com/sanchuanhehe/ws63-hal" }
+ws63-rt  = { version = "0.1", git = "https://github.com/sanchuanhehe/ws63-rt" }
+embedded-hal = "1.0.0"
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true

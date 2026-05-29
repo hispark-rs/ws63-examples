@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["blinky"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/sanchuanhehe/ws63-examples"
+
+[workspace.dependencies]
+ws63-pac = "0.1"
+ws63-hal = "0.1"
+ws63-rt  = "0.1"
+riscv = "0.13"
+riscv-rt = "0.14"
+embedded-hal = "1.0.0"
