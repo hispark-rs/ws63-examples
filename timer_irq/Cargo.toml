@@ -1,0 +1,22 @@
+[package]
+name = "timer_irq"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 timer-interrupt example (TIMER_0 -> IRQ 26 -> ISR), for ws63-qemu"
+license = "MIT"
+
+[[bin]]
+name = "timer_irq"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt  = { path = "../../ws63-rt" }
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+# LTO off: this example overrides ws63-rt's weak `mie0_interrupt_handler`
+# (defined in startup.S); LTO mis-resolves the weak-vs-strong override.
+lto = false
