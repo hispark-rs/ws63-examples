@@ -1,0 +1,20 @@
+[package]
+name = "gpio_irq"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 GPIO interrupt example (GPIO0 pin0 -> IRQ 33, a custom local IRQ >=32)"
+license = "MIT"
+
+[[bin]]
+name = "gpio_irq"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt  = { path = "../../ws63-rt" }
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
