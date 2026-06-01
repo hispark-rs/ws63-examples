@@ -1,0 +1,16 @@
+[package]
+name = "wifi_blob_link"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 phase-3 spike: statically link the vendor Wi-Fi ROM data blob (ws63-RF/lib/libwifi_rom_data.a) and resolve its external symbols"
+license = "MIT"
+
+[[bin]]
+name = "wifi_blob_link"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt = { path = "../../ws63-rt" }
+riscv = "0.13"
