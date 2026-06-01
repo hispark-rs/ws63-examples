@@ -1,0 +1,16 @@
+[package]
+name = "dma_loopback"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 DMA example: peripheral-paced mem<->SPI loopback (MDMA) + SDMA channel"
+license = "MIT"
+
+[[bin]]
+name = "dma_loopback"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt = { path = "../../ws63-rt" }
+riscv = "0.13"
