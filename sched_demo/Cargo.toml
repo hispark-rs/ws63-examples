@@ -1,0 +1,18 @@
+[package]
+name = "sched_demo"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 cooperative scheduler demo (ws63-rf-rs::sched): multitask context switch + semaphore"
+license = "MIT"
+
+[[bin]]
+name = "sched_demo"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt = { path = "../../ws63-rt" }
+ws63-rf-rs = { path = "../../ws63-rf-rs" }
+portable-atomic = { version = "1", default-features = false, features = ["critical-section"] }
+riscv = "0.13"
