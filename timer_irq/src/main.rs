@@ -1,12 +1,13 @@
 //! WS63 timer-interrupt example — validates the ws63-qemu interrupt controller.
 //!
 //! TIMER_0 fires periodically -> IRQ 26 (a standard `mie` bit) -> the CPU takes
-//! a machine interrupt. To keep the example self-contained (ws63-rs has no
-//! interrupt driver yet, and overriding ws63-rt's weak trap hooks across crates
-//! trips rustc's no_mangle-collision check), it installs its OWN `mtvec` in
-//! direct mode pointing at a local trap handler. The handler clears the timer
-//! and bumps a counter; `main` prints it over UART0 so each interrupt is
-//! visible on the QEMU console.
+//! a machine interrupt. The interrupt *controller* (unmasking IRQ 26, the
+//! priority defaults, the global enable) is driven through `ws63_hal::interrupt`
+//! — the mie-bit tier of the WS63 model. The trap *vector* is still local to the
+//! example: it installs its OWN `mtvec` in direct mode (overriding ws63-rt's
+//! weak cross-crate trap hooks would trip rustc's no_mangle-collision check).
+//! The handler clears the timer and bumps a counter; `main` prints it over UART0
+//! so each interrupt is visible on the QEMU console.
 //!
 //! End-to-end proof: timer down-counter -> mip[26] -> the hart takes the
 //! interrupt -> our handler runs -> UART shows the tick count climbing.
@@ -15,6 +16,7 @@
 #![no_main]
 
 use ws63_hal::Peripherals;
+use ws63_hal::interrupt::{self, Interrupt};
 use ws63_hal::uart::{Config, Uart};
 use ws63_rt::entry;
 
@@ -115,9 +117,11 @@ fn main() -> ! {
         core::ptr::write_volatile(TIMER0_LOAD, 2_400_000);
         core::ptr::write_volatile(TIMER0_CONTROL, 0x1);
 
-        // Enable the timer's machine interrupt (mie bit 26) + global MIE.
-        core::arch::asm!("csrs mie, {0}", in(reg) 1u32 << 26);
-        core::arch::asm!("csrsi mstatus, 0x8");
+        // Drive the interrupt controller via the HAL: default local priorities,
+        // unmask TIMER_0 (IRQ 26, an `mie` bit), then the global MIE.
+        interrupt::init();
+        interrupt::enable(Interrupt::TIMER_INT0);
+        interrupt::enable_global();
     }
 
     let mut last = 0u32;

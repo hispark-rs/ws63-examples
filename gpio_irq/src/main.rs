@@ -5,16 +5,20 @@
 //! models output->input loopback, so toggling the pin generates the edge that
 //! raises GPIO_0 = IRQ 33. The riscv31 core takes it with mcause=33 and (here,
 //! direct-mode mtvec) jumps to our trap handler, which reads mcause, clears the
-//! GPIO + LOCIPCLR, and counts. `main` prints the count over UART0.
+//! GPIO edge latch + the pending bit, and counts. `main` prints the count.
 //!
-//! Self-contained (own mtvec) to avoid overriding ws63-rt's weak trap hooks
-//! (which trips rustc's cross-crate no_mangle check). Proves the LOCIEN-gated,
-//! mcause-32-72 delivery path end-to-end.
+//! The interrupt *controller* — the local priority defaults, unmasking IRQ 33
+//! via `LOCIEN`, the global enable, and the `LOCIPCLR` pending-clear — is driven
+//! through `ws63_hal::interrupt`, exercising the custom-CSR (IRQ >= 32) tier of
+//! the WS63 model. The trap *vector* stays local to the example (its own mtvec)
+//! to avoid overriding ws63-rt's weak cross-crate trap hooks (rustc no_mangle
+//! collision). Proves the LOCIEN-gated, mcause-32-72 delivery path end-to-end.
 
 #![no_std]
 #![no_main]
 
 use ws63_hal::Peripherals;
+use ws63_hal::interrupt::{self, Interrupt};
 use ws63_hal::uart::{Config, Uart};
 use ws63_rt::entry;
 
@@ -27,7 +31,7 @@ const GPIO_INT_EOI: usize = GPIO0 + 0x2C;
 const GPIO_DATA_SET: usize = GPIO0 + 0x30;
 const GPIO_DATA_CLR: usize = GPIO0 + 0x34;
 
-const GPIO0_IRQ: u32 = 33;
+const GPIO0_IRQ: u32 = Interrupt::GPIO_INT0 as u32;
 
 static mut COUNT: u32 = 0;
 
@@ -87,9 +91,9 @@ extern "C" fn girq_handle() {
     if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == GPIO0_IRQ {
         unsafe {
             core::ptr::write_volatile(GPIO_INT_EOI as *mut u32, 1); // clear GPIO edge latch
-            core::arch::asm!("csrw 0xbf0, {0}", in(reg) GPIO0_IRQ); // LOCIPCLR
             COUNT = COUNT.wrapping_add(1);
         }
+        interrupt::clear_pending(Interrupt::GPIO_INT0); // LOCIPCLR via the HAL
     }
 }
 
@@ -125,9 +129,11 @@ fn main() -> ! {
         core::ptr::write_volatile(GPIO_INT_TYPE as *mut u32, 1); // pin0 edge-triggered
         core::ptr::write_volatile(GPIO_INT_POL as *mut u32, 1); // pin0 rising edge
         core::ptr::write_volatile(GPIO_INT_EN as *mut u32, 1); // pin0 interrupt enabled
-        // LOCIEN0 bit1 enables IRQ 33; then global MIE.
-        core::arch::asm!("csrs 0xbe0, {0}", in(reg) 1u32 << 1);
-        core::arch::asm!("csrsi mstatus, 0x8");
+        // Drive the controller via the HAL: default local priorities, unmask
+        // GPIO_INT0 (IRQ 33, a custom local interrupt via LOCIEN0 bit1), global MIE.
+        interrupt::init();
+        interrupt::enable(Interrupt::GPIO_INT0);
+        interrupt::enable_global();
     }
 
     let mut last = 0u32;
