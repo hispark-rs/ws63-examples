@@ -120,7 +120,7 @@ fn main() -> ! {
     );
 
     unsafe {
-        core::arch::asm!("csrw mtvec, {0}", in(reg) girq_trap as usize); // direct mode
+        core::arch::asm!("csrw mtvec, {0}", in(reg) girq_trap as *const () as usize); // direct mode
         core::ptr::write_volatile(GPIO_OEN as *mut u32, 0); // pin0 output
         core::ptr::write_volatile(GPIO_INT_TYPE as *mut u32, 1); // pin0 edge-triggered
         core::ptr::write_volatile(GPIO_INT_POL as *mut u32, 1); // pin0 rising edge

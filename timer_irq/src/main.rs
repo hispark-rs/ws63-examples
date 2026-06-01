@@ -108,7 +108,7 @@ fn main() -> ! {
 
     unsafe {
         // Install our own direct-mode mtvec (low 2 bits = 0 => Direct).
-        core::arch::asm!("csrw mtvec, {0}", in(reg) tirq_trap as usize);
+        core::arch::asm!("csrw mtvec, {0}", in(reg) tirq_trap as *const () as usize);
 
         // Periodic timer: reload ~2.4M counts (~0.1 s at the modeled 24 MHz);
         // enable (CONTROL bit0), interrupt unmasked (bit3 = 0).
