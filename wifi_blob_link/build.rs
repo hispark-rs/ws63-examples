@@ -26,8 +26,13 @@ fn main() {
     // be linked at all. Matches how the C SDK unconditionally includes it.
     println!("cargo:rustc-link-lib=static:+whole-archive=wifi_rom_data");
 
-    // The C SDK .wifi_pkt_ram base; the blob references it as a linker symbol.
+    // The C SDK .wifi_pkt_ram region; the blob references its bounds as linker
+    // symbols (base 0x00A0_0000, size 0xC000 -> end 0x00A0_C000, per the C SDK
+    // linker.lds). These two are the ENTIRE residual of a Wi-Fi-init link once
+    // ws63-rf-rs + the WS63 ROM symbol table resolve everything else — see
+    // ws63-rf-rs/tools/mac-link-residual.sh.
     println!("cargo:rustc-link-arg=--defsym=__wifi_pkt_ram_begin__=0x00A00000");
+    println!("cargo:rustc-link-arg=--defsym=__wifi_pkt_ram_end__=0x00A0C000");
 
     println!("cargo:rerun-if-changed=build.rs");
     println!(
