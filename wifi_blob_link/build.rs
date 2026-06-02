@@ -4,7 +4,7 @@
 //! the vendor Wi-Fi ROM data archive and supplies the one linker symbol it
 //! references:
 //!
-//! - `libwifi_rom_data.a` lives in the `ws63-RF` submodule (`../../ws63-RF/lib`).
+//! - `libwifi_rom_data.a` lives in the `ws63-RF` submodule (`../../ws63-rf-rs/ws63-RF/lib`).
 //!   It is `rv32imfc` / `ilp32f` (single-float), matching the `ws63` toolchain's
 //!   `riscv32imfc-unknown-none-elf` target, so the ABI lines up.
 //! - `__wifi_pkt_ram_begin__` is the base of the C SDK `.wifi_pkt_ram` region
@@ -16,7 +16,7 @@ fn main() {
     println!("cargo:rustc-link-arg=-Tws63-link.x");
 
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let lib_dir = PathBuf::from(&manifest).join("../../ws63-RF/lib");
+    let lib_dir = PathBuf::from(&manifest).join("../../ws63-rf-rs/ws63-RF/lib");
     let lib_dir = lib_dir.canonicalize().unwrap_or(lib_dir);
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     // `+whole-archive`: pull in EVERY object/section of the config archive, not
