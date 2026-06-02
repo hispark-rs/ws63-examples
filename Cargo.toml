@@ -10,7 +10,7 @@ repository = "https://github.com/sanchuanhehe/ws63-examples"
 
 [workspace.dependencies]
 ws63-pac = "0.1"
-ws63-hal = "0.1"
+ws63-hal = "0.2"
 ws63-rt  = "0.1"
 riscv = "0.13"
 riscv-rt = "0.14"
