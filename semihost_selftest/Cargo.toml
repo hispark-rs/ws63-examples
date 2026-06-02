@@ -1,0 +1,17 @@
+[package]
+name = "semihost_selftest"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 self-test that reports pass/fail via RISC-V semihosting (CI exit code, no UART parsing)"
+license = "MIT"
+
+[[bin]]
+name = "semihost_selftest"
+path = "src/main.rs"
+
+[dependencies]
+ws63-rt = { path = "../../ws63-rt" }
+
+[profile.release]
+opt-level = "s"
+lto = true
