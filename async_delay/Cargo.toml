@@ -1,0 +1,21 @@
+[package]
+name = "async_delay"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 async example: embedded-hal-async DelayNs on a TIMER, driven by a minimal block_on"
+license = "MIT"
+
+[[bin]]
+name = "async_delay"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal", features = ["async"] }
+ws63-rt  = { path = "../../ws63-rt" }
+embedded-hal-async = "1.0"
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
