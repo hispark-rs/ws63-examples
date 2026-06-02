@@ -15,6 +15,7 @@ use embedded_hal_async::spi::SpiBus as _;
 use ws63_hal::Peripherals;
 use ws63_hal::asynch::block_on;
 use ws63_hal::i2c::I2c;
+use ws63_hal::lsadc::LsAdc;
 use ws63_hal::spi::{Config as SpiConfig, Spi};
 use ws63_hal::uart::{Config as UartConfig, Uart};
 use ws63_rt::entry;
@@ -30,6 +31,7 @@ fn main() -> ! {
 
     let mut spi = Spi::new_spi0(p.SPI0, SpiConfig::default());
     let mut i2c = I2c::new_i2c0(p.I2C0, 100_000);
+    let mut adc = LsAdc::new(p.LSADC);
 
     let ok = block_on(async {
         let mut all = true;
@@ -65,6 +67,15 @@ fn main() -> ! {
                     0,
                     b"  i2c.write_read().await -> err (no slave; trait path exercised)\r\n",
                 );
+            }
+        }
+
+        // LSADC: async conversion (IRQ 72; FIFO filled synchronously on QEMU).
+        match adc.read_async().await {
+            Some(_s) => uart.write(0, b"  adc.read_async().await -> sample ok\r\n"),
+            None => {
+                uart.write(0, b"  adc.read_async().await -> no sample\r\n");
+                all = false;
             }
         }
 
