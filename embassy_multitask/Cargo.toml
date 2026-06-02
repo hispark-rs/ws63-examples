@@ -1,0 +1,23 @@
+[package]
+name = "embassy_multitask"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 embassy-executor + embassy-time multitask demo (Timer::after on the WS63 time-driver)"
+license = "MIT"
+
+[[bin]]
+name = "embassy_multitask"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal", features = ["embassy"] }
+ws63-rt  = { path = "../../ws63-rt" }
+embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
+embassy-time = { version = "0.5", features = ["tick-hz-1_000_000"] }
+static_cell = "2"
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
