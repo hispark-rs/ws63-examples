@@ -1,0 +1,24 @@
+[package]
+name = "custom_memory"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 example that supplies its OWN memory.x (ws63-rt's bundled memory.x disabled)"
+license = "MIT"
+
+[[bin]]
+name = "custom_memory"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal" }
+# default-features = false turns OFF ws63-rt's `bundled-memory-x`, so ws63-rt does
+# NOT put its memory.x on the link search path. This crate supplies its own (see
+# build.rs + memory.x). ws63-rt still provides layout.ld / device.x / startup /
+# ws63-link.x and the critical-section impl.
+ws63-rt  = { path = "../../ws63-rt", default-features = false }
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
