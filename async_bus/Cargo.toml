@@ -1,0 +1,21 @@
+[package]
+name = "async_bus"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 async SPI/I2C demo (embedded-hal-async SpiBus + I2c, loopback under block_on)"
+license = "MIT"
+
+[[bin]]
+name = "async_bus"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal", features = ["async"] }
+ws63-rt  = { path = "../../ws63-rt" }
+embedded-hal-async = "1.0"
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
