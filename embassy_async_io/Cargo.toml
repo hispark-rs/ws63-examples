@@ -1,0 +1,25 @@
+[package]
+name = "embassy_async_io"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 embassy capstone: GPIO embedded-hal-async Wait + async UART, timed by embassy-time"
+license = "MIT"
+
+[[bin]]
+name = "embassy_async_io"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../ws63-pac" }
+ws63-hal = { path = "../../ws63-hal", features = ["embassy"] }
+ws63-rt  = { path = "../../ws63-rt" }
+embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
+embassy-time = { version = "0.5", features = ["tick-hz-1_000_000"] }
+embedded-hal-async = "1.0"
+embedded-io-async = "0.6"
+static_cell = "2"
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
