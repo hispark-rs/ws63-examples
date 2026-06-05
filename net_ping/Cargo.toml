@@ -1,0 +1,24 @@
+[package]
+name = "net_ping"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 connectivity demo (ROADMAP phase 5, M3): smoltcp over the ws63-qemu synthetic MAC (ws63-netmac) — ARP + ICMP ping + UDP over the SLIRP NAT, no RF blob"
+license = "MIT"
+
+[[bin]]
+name = "net_ping"
+path = "src/main.rs"
+
+[dependencies]
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt = { path = "../../ws63-rt" }
+# The netif seam (set_tx_sink / rx_push / Ws63Device) lives behind `net`.
+ws63-rf-rs = { path = "../../ws63-rf-rs", features = ["net"] }
+# Same smoltcp 0.13 as ws63-rf-rs (Cargo unifies to one instance); add the
+# ICMP + UDP socket features this example needs on top of the bridge's set.
+smoltcp = { version = "0.13", default-features = false, features = [
+    "medium-ethernet",
+    "proto-ipv4",
+    "socket-icmp",
+    "socket-udp",
+] }
