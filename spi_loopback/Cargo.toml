@@ -1,0 +1,19 @@
+[package]
+name = "spi_loopback"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 blocking SPI0 loopback example (two-stage clock, full-duplex transfer)"
+license = "MIT"
+
+[[bin]]
+name = "spi_loopback"
+path = "src/main.rs"
+
+[dependencies]
+ws63-hal = { path = "../../ws63-hal" }
+ws63-rt  = { path = "../../ws63-rt" }
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true

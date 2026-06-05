@@ -1,22 +1,20 @@
 //! WS63 LED Blinky example.
 //!
-//! Blinks the onboard LED on a WS63 evaluation board.
-//! The LED is typically connected to GPIO0 on most WS63 EVBs.
+//! Blinks the onboard LED (GPIO0 on most WS63 EVBs).
 //!
-//! This example demonstrates:
-//! - Runtime initialization (ws63-rt)
-//! - GPIO output control (ws63-hal)
-//! - Simple busy-wait delay
+//! Demonstrates the HAL's **modern GPIO path** — the [`OutputConfig`] builder +
+//! the type-erased [`Output`](ws63_hal::gpio::Output) driver — plus a simple
+//! busy-wait delay. For an interrupt- or async-timed delay (using the corrected
+//! 24 MHz timer clock) see the `timer_irq` / `async_delay` examples.
 
 #![no_std]
 #![no_main]
 
-use ws63_hal::gpio::create_output_pin;
+use ws63_hal::gpio::{AnyPin, OutputConfig};
 use ws63_rt::entry;
 
-/// Simple busy-wait delay (~240 MHz CPU clock).
+/// Approximate busy-wait delay (~240 cycles ≈ 1 µs at the 240 MHz CPU clock).
 fn delay_ms(ms: u32) {
-    // Approximate: 240 cycles = 1 µs at 240 MHz
     for _ in 0..ms {
         for _ in 0..240_000 {
             core::hint::spin_loop();
@@ -26,15 +24,13 @@ fn delay_ms(ms: u32) {
 
 #[entry]
 fn main() -> ! {
-    // Configure GPIO pin 0 as output (board LED on WS63 EVB)
-    let mut led = create_output_pin(0);
+    // GPIO0 as a push-pull output starting low, built via the OutputConfig builder.
+    // SAFETY: GPIO0 is a valid WS63 pin (0..=18) and this example owns it exclusively.
+    let mut led = unsafe { AnyPin::steal(0) }.init_output(OutputConfig::new().with_initial(false));
 
     loop {
-        // LED on
         led.set_high();
         delay_ms(500);
-
-        // LED off
         led.set_low();
         delay_ms(500);
     }
