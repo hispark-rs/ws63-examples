@@ -10,8 +10,8 @@ name = "net_ping"
 path = "src/main.rs"
 
 [dependencies]
-ws63-hal = { path = "../../ws63-hal" }
-ws63-rt = { path = "../../ws63-rt" }
+hisi-riscv-hal = { path = "../../hisi-riscv-hal" }
+hisi-riscv-rt = { path = "../../hisi-riscv-rt" }
 # The netif seam (set_tx_sink / rx_push / Ws63Device) lives behind `net`.
 ws63-rf-rs = { path = "../../ws63-rf-rs", features = ["net"] }
 # Same smoltcp 0.13 as ws63-rf-rs (Cargo unifies to one instance); add the

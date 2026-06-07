@@ -6,15 +6,15 @@
 //!
 //! `Spi::new_spi0` programs the **two-stage clock** (a CLDO_CRG divider sets the
 //! 160 MHz SSI_CLK off the 480 MHz PLL, then SCKDV divides to SCK), so the
-//! configured 1 MHz is honoured on hardware — see ws63-hal `spi.rs`.
+//! configured 1 MHz is honoured on hardware — see hisi-riscv-hal `spi.rs`.
 
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::spi::{Config as SpiConfig, Spi, SpiMode};
-use ws63_hal::uart::{Config as UartConfig, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::spi::{Config as SpiConfig, Spi, SpiMode};
+use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_riscv_rt::entry;
 
 #[entry]
 fn main() -> ! {

@@ -11,8 +11,8 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../ws63-pac" }
-ws63-hal = { path = "../../ws63-hal", features = ["embassy"] }
-ws63-rt  = { path = "../../ws63-rt" }
+hisi-riscv-hal = { path = "../../hisi-riscv-hal", features = ["embassy"] }
+hisi-riscv-rt  = { path = "../../hisi-riscv-rt" }
 embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
 embassy-time = { version = "0.5", features = ["tick-hz-1_000_000"] }
 embedded-hal-async = "1.0"

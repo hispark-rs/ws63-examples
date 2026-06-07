@@ -35,11 +35,11 @@ use smoltcp::wire::{
     EthernetAddress, HardwareAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr, IpEndpoint,
     Ipv4Address,
 };
-use ws63_hal::Peripherals;
-use ws63_hal::interrupt::{self, Interrupt};
-use ws63_hal::uart::{Config as UartConfig, Uart};
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::interrupt::{self, Interrupt};
+use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
 use ws63_rf_rs::netif_smoltcp::{Ws63Device, rx_push};
-use ws63_rt::entry;
+use hisi_riscv_rt::entry;
 
 // ── ws63-netmac register map (must match ws63-qemu hw/riscv/ws63.c) ──────────
 const NETMAC: usize = 0x4421_0000;
@@ -97,7 +97,7 @@ fn now_ms() -> u64 {
 
 // ── IRQ 45 (WLMAC_INT) trap: drain the MAC RX buffer into the bridge ─────────
 // Own direct-mode mtvec (same approach as the gpio_irq example) so we don't
-// collide with ws63-rt's weak cross-crate trap hooks. The handler reads mcause,
+// collide with hisi-riscv-rt's weak cross-crate trap hooks. The handler reads mcause,
 // and on WLMAC_INT copies the frame out of RX_BUF, hands it to `rx_push`, and
 // RX_ACKs the MAC (which drops the level-triggered IRQ line) before clearing the
 // local pending bit — order matters, or the still-high line would re-pend.
@@ -192,7 +192,7 @@ extern "C" fn nmac_handle() {
 }
 
 // ── tiny UART formatting helpers ─────────────────────────────────────────────
-type Uart0<'a> = Uart<'a, ws63_hal::peripherals::Uart0<'a>>;
+type Uart0<'a> = Uart<'a, hisi_riscv_hal::peripherals::Uart0<'a>>;
 
 fn put_u32(uart: &Uart0<'_>, mut n: u32) {
     let mut buf = [0u8; 10];

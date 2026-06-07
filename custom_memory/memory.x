@@ -1,10 +1,10 @@
 /*
  * PER-EXAMPLE memory.x for `custom_memory`.
  *
- * Demonstrates that a binary can own its memory layout (ws63-rt's bundled
+ * Demonstrates that a binary can own its memory layout (hisi-riscv-rt's bundled
  * memory.x is disabled via `default-features = false`). The region addresses
  * here are the standard WS63 layout (so it boots), but this file — not
- * ws63-rt's — is the one the linker uses. The `__custom_memory_marker` symbol
+ * hisi-riscv-rt's — is the one the linker uses. The `__custom_memory_marker` symbol
  * below proves it at runtime: if this file is in effect the symbol resolves to
  * 0x00C0_FFEE; if it weren't, the link would fail (undefined region/symbol).
  *
@@ -24,7 +24,7 @@ MEMORY
     PRESERVE (rw) : ORIGIN = 0xA90000 - 0x100, LENGTH = 0x100
 }
 
-/* Marker proving THIS memory.x (not ws63-rt's) is in effect (see src/main.rs). */
+/* Marker proving THIS memory.x (not hisi-riscv-rt's) is in effect (see src/main.rs). */
 PROVIDE(__custom_memory_marker = 0x00C0FFEE);
 
 /* Memory regions exported as symbols for runtime relocation */

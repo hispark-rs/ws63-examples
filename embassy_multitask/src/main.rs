@@ -2,14 +2,14 @@
 //!
 //! Runs `embassy-executor` (platform-riscv32, thread mode) with two async tasks
 //! that `embassy_time::Timer::after_millis(..).await` at different rates. Time
-//! comes from `ws63_hal::embassy` — the WS63 embassy-time `Driver` (now() via the
+//! comes from `hisi_riscv_hal::embassy` — the WS63 embassy-time `Driver` (now() via the
 //! TCXO 64-bit counter, alarms via a TIMER channel). This proves full embassy
 //! adaptation on the single-core, no-atomics WS63 (atomics via portable-atomic +
 //! critical-section).
 //!
 //! The HAL time-driver does not install a trap handler, so this example owns its
 //! `mtvec` and routes the alarm channel's IRQ (TIMER_INT0 = 26) to
-//! `ws63_hal::embassy::on_alarm_interrupt`.
+//! `hisi_riscv_hal::embassy::on_alarm_interrupt`.
 
 #![no_std]
 #![no_main]
@@ -17,9 +17,9 @@
 use embassy_executor::{Executor, Spawner};
 use embassy_time::Timer;
 use static_cell::StaticCell;
-use ws63_hal::Peripherals;
-use ws63_hal::interrupt;
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::interrupt;
+use hisi_riscv_rt::entry;
 
 // ── raw UART0 output (avoids sharing a Uart handle across tasks) ──
 const UART0_DATA: *mut u32 = 0x4401_0004 as *mut u32;
@@ -78,7 +78,7 @@ extern "C" fn atrap_handle() {
     let mcause: u32;
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
     if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == 26 {
-        ws63_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
+        hisi_riscv_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
     }
 }
 
@@ -115,7 +115,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     // Start the TCXO free-running counter (the embassy-time `now()` source).
-    let mut tcxo = ws63_hal::tcxo::TcxoDriver::new(p.TCXO);
+    let mut tcxo = hisi_riscv_hal::tcxo::TcxoDriver::new(p.TCXO);
     tcxo.enable();
 
     puts(b"\r\nWS63 embassy multitask (embassy-time: TCXO now() + TIMER alarm)\r\n");

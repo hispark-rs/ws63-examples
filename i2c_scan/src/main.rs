@@ -8,10 +8,10 @@
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::i2c::I2c;
-use ws63_hal::uart::{Config as UartConfig, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::i2c::I2c;
+use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_riscv_rt::entry;
 
 /// Write `byte` as two uppercase hex digits over UART0 (generic over the instance).
 fn write_hex2<T>(uart: &Uart<'_, T>, byte: u8) {

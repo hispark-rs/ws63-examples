@@ -9,18 +9,18 @@
 //!
 //! The interrupt *controller* — the local priority defaults, unmasking IRQ 33
 //! via `LOCIEN`, the global enable, and the `LOCIPCLR` pending-clear — is driven
-//! through `ws63_hal::interrupt`, exercising the custom-CSR (IRQ >= 32) tier of
+//! through `hisi_riscv_hal::interrupt`, exercising the custom-CSR (IRQ >= 32) tier of
 //! the WS63 model. The trap *vector* stays local to the example (its own mtvec)
-//! to avoid overriding ws63-rt's weak cross-crate trap hooks (rustc no_mangle
+//! to avoid overriding hisi-riscv-rt's weak cross-crate trap hooks (rustc no_mangle
 //! collision). Proves the LOCIEN-gated, mcause-32-72 delivery path end-to-end.
 
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::interrupt::{self, Interrupt};
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::interrupt::{self, Interrupt};
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 const GPIO0: usize = 0x4402_8000;
 const GPIO_OEN: usize = GPIO0 + 0x04;
@@ -97,7 +97,7 @@ extern "C" fn girq_handle() {
     }
 }
 
-fn put_u32(uart: &Uart<'_, ws63_hal::peripherals::Uart0<'_>>, mut n: u32) {
+fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) {
     let mut buf = [0u8; 10];
     let s: &[u8] = if n == 0 {
         buf[0] = b'0';

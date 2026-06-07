@@ -1,4 +1,4 @@
-//! WS63 system-reset example — validates `ws63_hal::System::software_reset` and
+//! WS63 system-reset example — validates `hisi_riscv_hal::System::software_reset` and
 //! `reset_reason` end-to-end on ws63-qemu.
 //!
 //! On the first (cold) boot the reset-reason record is empty, so `reset_reason()`
@@ -14,10 +14,10 @@
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::system::{ResetReason, System};
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::system::{ResetReason, System};
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 fn reason_str(r: ResetReason) -> &'static [u8] {
     match r {

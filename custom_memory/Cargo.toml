@@ -2,7 +2,7 @@
 name = "custom_memory"
 version = "0.1.0"
 edition = "2024"
-description = "WS63 example that supplies its OWN memory.x (ws63-rt's bundled memory.x disabled)"
+description = "WS63 example that supplies its OWN memory.x (hisi-riscv-rt's bundled memory.x disabled)"
 license = "MIT"
 
 [[bin]]
@@ -11,14 +11,14 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../ws63-pac" }
-ws63-hal = { path = "../../ws63-hal" }
-# default-features = false turns OFF ws63-rt's `bundled-memory-x`, so ws63-rt does
+hisi-riscv-hal = { path = "../../hisi-riscv-hal" }
+# default-features = false turns OFF hisi-riscv-rt's `bundled-memory-x`, so hisi-riscv-rt does
 # NOT put its memory.x on the link search path. This crate supplies its own (see
 # build.rs + memory.x). We must re-select `chip-ws63` (also a default feature) so
-# ws63-rt still emits the WS63 device.x + re-exports the WS63 interrupt enum.
-# ws63-rt still provides layout.ld / device.x / startup / ws63-link.x and the
+# hisi-riscv-rt still emits the WS63 device.x + re-exports the WS63 interrupt enum.
+# hisi-riscv-rt still provides layout.ld / device.x / startup / ws63-link.x and the
 # critical-section impl.
-ws63-rt  = { path = "../../ws63-rt", default-features = false, features = ["chip-ws63"] }
+hisi-riscv-rt  = { path = "../../hisi-riscv-rt", default-features = false, features = ["chip-ws63"] }
 riscv = "0.13"
 
 [profile.release]

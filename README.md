@@ -13,7 +13,7 @@ Example applications for the HiSilicon WS63 SoC using the ws63-rs ecosystem.
 
 ```bash
 # Configure target
-export RUSTC_TARGET="ws63-rt/target-specs/riscv32imfc-unknown-none-elf.json"
+export RUSTC_TARGET="hisi-riscv-rt/target-specs/riscv32imfc-unknown-none-elf.json"
 
 # Build blinky
 cargo build --release --target $RUSTC_TARGET --package blinky

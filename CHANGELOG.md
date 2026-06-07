@@ -16,11 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **wifi_blob_link** — Phase-3 Wi-Fi ROM blob linking spike with `__wifi_pkt_ram_end__` defsym
 - **rf_port_demo** — ws63-rf-rs porting layer + blob link exercise
 - **sched_demo** — ws63-rf-rs cooperative scheduler validation (later moved to ws63-rf-rs)
-- **blinky** build.rs — Automatic ws63-rt linker script discovery (-Tws63-link.x)
+- **blinky** build.rs — Automatic hisi-riscv-rt linker script discovery (-Tws63-link.x)
 
 ### Changed
 
-- **timer_irq, gpio_irq** — Refactored to use ws63_hal::interrupt controller API
+- **timer_irq, gpio_irq** — Refactored to use hisi_riscv_hal::interrupt controller API
 - **wifi_blob_link examples** — Point at nested ws63-RF (ws63-rf-rs/ws63-RF)
 
 ### Fixed
@@ -37,8 +37,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial ws63-examples repository with blinky LED example
 - **blinky** — GPIO output and busy-wait delay demonstration
-  - Uses `ws63-rt::entry` for startup
-  - Uses `ws63-hal::gpio::create_output_pin` for GPIO control
+  - Uses `hisi-riscv-rt::entry` for startup
+  - Uses `hisi-riscv-hal::gpio::create_output_pin` for GPIO control
   - Demonstrates minimal `#![no_std]` + `#![no_main]` embedded application pattern
 - Project documentation (ARCHITECTURE.md, README.md)
-- Workspace Cargo configuration with path dependencies (ws63-pac, ws63-hal, ws63-rt)
+- Workspace Cargo configuration with path dependencies (ws63-pac, hisi-riscv-hal, hisi-riscv-rt)

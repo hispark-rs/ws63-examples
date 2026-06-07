@@ -28,11 +28,11 @@
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::dma::{Dma0, DmaChannelConfig, DmaDriver, DmaInstance, DmaPeripheral, Sdma0};
-use ws63_hal::spi::{Config as SpiConfig, Spi};
-use ws63_hal::uart::{Config as UartConfig, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::dma::{Dma0, DmaChannelConfig, DmaDriver, DmaInstance, DmaPeripheral, Sdma0};
+use hisi_riscv_hal::spi::{Config as SpiConfig, Spi};
+use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_riscv_rt::entry;
 
 /// SPI0 data register (PAC `spi0.spi_dr`, offset 0x60). The DMA peripheral
 /// endpoint for the loopback: a write pushes the SPI loopback FIFO, a read pops.

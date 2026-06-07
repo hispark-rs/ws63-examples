@@ -1,6 +1,6 @@
 //! Build script for the wifi_blob_link phase-3 spike.
 //!
-//! Besides the usual ws63-rt linker-script opt-in (`-Tws63-link.x`), this links
+//! Besides the usual hisi-riscv-rt linker-script opt-in (`-Tws63-link.x`), this links
 //! the vendor Wi-Fi ROM data archive and supplies the one linker symbol it
 //! references:
 //!

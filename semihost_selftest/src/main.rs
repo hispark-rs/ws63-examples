@@ -15,7 +15,7 @@
 #![no_std]
 #![no_main]
 
-use ws63_rt::entry;
+use hisi_riscv_rt::entry;
 
 /// Minimal RISC-V semihosting helper (exit + console write).
 mod semihosting {

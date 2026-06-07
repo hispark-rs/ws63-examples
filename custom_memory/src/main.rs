@@ -1,19 +1,19 @@
 //! WS63 example that supplies its OWN `memory.x`.
 //!
-//! `ws63-rt`'s bundled memory.x is disabled (`default-features = false` in
+//! `hisi-riscv-rt`'s bundled memory.x is disabled (`default-features = false` in
 //! Cargo.toml); this crate's build.rs puts its own memory.x on the link search
 //! path instead. To prove the per-example file is actually the one linked, the
 //! example's memory.x defines `__custom_memory_marker = 0x00C0_FFEE`; we read
-//! that symbol's address and print it. ws63-rt's memory.x does NOT define it, so
+//! that symbol's address and print it. hisi-riscv-rt's memory.x does NOT define it, so
 //! a value of 0x00C0_FFEE confirms the override worked (and the link only
 //! succeeds at all because our memory.x supplied the MEMORY regions).
 
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 // Defined only by THIS crate's memory.x (a linker symbol whose *address* is the
 // marker value). Edition 2024 requires `unsafe extern`.

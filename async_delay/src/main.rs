@@ -1,7 +1,7 @@
 //! WS63 async example — `embedded-hal-async` `DelayNs` on a hardware TIMER.
 //!
-//! `ws63_hal::timer::AsyncDelay` arms TIMER0 one-shot and parks the task until
-//! the timer's completion IRQ (26) fires; `ws63_hal::asynch::block_on` runs the
+//! `hisi_riscv_hal::timer::AsyncDelay` arms TIMER0 one-shot and parks the task until
+//! the timer's completion IRQ (26) fires; `hisi_riscv_hal::asynch::block_on` runs the
 //! future, sleeping the core with `wfi` between polls. This exercises the full
 //! async path on ws63-qemu: arm → `wfi` → TIMER IRQ → trap → `timer::on_interrupt`
 //! → waker → re-poll → future completes.
@@ -14,12 +14,12 @@
 #![no_main]
 
 use embedded_hal_async::delay::DelayNs;
-use ws63_hal::Peripherals;
-use ws63_hal::asynch::block_on;
-use ws63_hal::interrupt;
-use ws63_hal::timer::{self, AsyncDelay};
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::asynch::block_on;
+use hisi_riscv_hal::interrupt;
+use hisi_riscv_hal::timer::{self, AsyncDelay};
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 // Direct-mode trap: save caller-saved regs, dispatch in Rust, restore, mret.
 core::arch::global_asm!(
@@ -80,7 +80,7 @@ extern "C" fn atrap_handle() {
     }
 }
 
-fn put_u32(uart: &Uart<'_, ws63_hal::peripherals::Uart0<'_>>, mut n: u32) {
+fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) {
     let mut buf = [0u8; 10];
     let s: &[u8] = if n == 0 {
         buf[0] = b'0';

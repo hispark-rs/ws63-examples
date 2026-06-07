@@ -2,9 +2,9 @@
 //!
 //! TIMER_0 fires periodically -> IRQ 26 (a standard `mie` bit) -> the CPU takes
 //! a machine interrupt. The interrupt *controller* (unmasking IRQ 26, the
-//! priority defaults, the global enable) is driven through `ws63_hal::interrupt`
+//! priority defaults, the global enable) is driven through `hisi_riscv_hal::interrupt`
 //! — the mie-bit tier of the WS63 model. The trap *vector* is still local to the
-//! example: it installs its OWN `mtvec` in direct mode (overriding ws63-rt's
+//! example: it installs its OWN `mtvec` in direct mode (overriding hisi-riscv-rt's
 //! weak cross-crate trap hooks would trip rustc's no_mangle-collision check).
 //! The handler clears the timer and bumps a counter; `main` prints it over UART0
 //! so each interrupt is visible on the QEMU console.
@@ -15,10 +15,10 @@
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::interrupt::{self, Interrupt};
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::interrupt::{self, Interrupt};
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 // TIMER_0 registers (base 0x4400_2000, TIMER0 block at +0x100).
 const TIMER0_LOAD: *mut u32 = 0x4400_2100 as *mut u32;
@@ -28,7 +28,7 @@ const TIMER0_EOI: *mut u32 = 0x4400_2114 as *mut u32;
 static mut TICKS: u32 = 0;
 
 // Local trap vector (direct mode): save caller-saved regs, dispatch in Rust,
-// restore, mret. Unique symbol names — no collision with ws63-rt.
+// restore, mret. Unique symbol names — no collision with hisi-riscv-rt.
 core::arch::global_asm!(
     ".section .text.tirq, \"ax\"",
     ".balign 4",
@@ -85,7 +85,7 @@ extern "C" fn tirq_handle() {
     }
 }
 
-fn put_u32(uart: &Uart<'_, ws63_hal::peripherals::Uart0<'_>>, mut n: u32) {
+fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) {
     let mut buf = [0u8; 10];
     let s: &[u8] = if n == 0 {
         buf[0] = b'0';

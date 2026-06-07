@@ -28,15 +28,15 @@
 //! whose many symbols need the real porting layer + HCC IPC; that
 //! `g_dmac_alg_main`/`g_mac_res_etc` are satisfied by the *real* driver libs
 //! with correct ABI (here they are stubs); and a real reserved `.wifi_pkt_ram`
-//! NOLOAD region in `ws63-rt` (here `__wifi_pkt_ram_begin__` is a bare
+//! NOLOAD region in `hisi-riscv-rt` (here `__wifi_pkt_ram_begin__` is a bare
 //! `--defsym`). The Wi-Fi stack does not run — this is a link/relocation proof.
 
 #![no_std]
 #![no_main]
 
-use ws63_hal::Peripherals;
-use ws63_hal::uart::{Config, Uart};
-use ws63_rt::entry;
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 
 /// C SDK `.wifi_pkt_ram` region base (linker.lds: 0xA00000, size 0xC000),
 /// supplied to the blob as `__wifi_pkt_ram_begin__` via build.rs `--defsym`.

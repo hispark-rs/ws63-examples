@@ -9,5 +9,5 @@
 - 总体架构：<https://github.com/sanchuanhehe/ws63-rs/blob/main/docs/architecture/overview.md>
 - 整改排期：<https://github.com/sanchuanhehe/ws63-rs/blob/main/ROADMAP.md>
 
-> 已知问题：blinky 当前因 ws63-rt 链接脚本不传播而无法链接；且唯一示例不足以验证 31 个驱动。
+> 已知问题：blinky 当前因 hisi-riscv-rt 链接脚本不传播而无法链接；且唯一示例不足以验证 31 个驱动。
 > 见 ROADMAP 阶段 1 / 5。
