@@ -10,10 +10,10 @@ name = "net_ping"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../hisi-riscv-hal" }
-hisi-riscv-rt = { path = "../../hisi-riscv-rt" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt" }
 # The netif seam (set_tx_sink / rx_push / Ws63Device) lives behind `net`.
-ws63-rf-rs = { path = "../../ws63-rf-rs", features = ["net"] }
+ws63-rf-rs = { path = "../../../chips/ws63/rf", features = ["net"] }
 # Same smoltcp 0.13 as ws63-rf-rs (Cargo unifies to one instance); add the
 # ICMP + UDP socket features this example needs on top of the bridge's set.
 smoltcp = { version = "0.13", default-features = false, features = [

@@ -19,12 +19,12 @@ use embassy_executor::{Executor, Spawner};
 use embassy_time::Timer;
 use embedded_hal_async::digital::Wait;
 use embedded_io_async::Write;
-use static_cell::StaticCell;
 use hisi_riscv_hal::gpio::{AnyPin, InputConfig};
 use hisi_riscv_hal::interrupt;
 use hisi_riscv_hal::peripherals::Uart0;
 use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
+use static_cell::StaticCell;
 
 const GPIO0: usize = 0x4402_8000;
 const GPIO_OEN: *mut u32 = (GPIO0 + 0x04) as *mut u32;
@@ -99,7 +99,9 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 #[entry]
 fn main() -> ! {
     // Start the TCXO counter (embassy-time `now()` source); banner via blocking UART.
-    let mut tcxo = hisi_riscv_hal::tcxo::TcxoDriver::new(unsafe { hisi_riscv_hal::peripherals::Tcxo::steal() });
+    let mut tcxo = hisi_riscv_hal::tcxo::TcxoDriver::new(unsafe {
+        hisi_riscv_hal::peripherals::Tcxo::steal()
+    });
     tcxo.enable();
     let banner = Uart::new_uart0(unsafe { Uart0::steal() }, UartConfig::default());
     banner.write(

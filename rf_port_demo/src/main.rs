@@ -24,10 +24,10 @@ use core::ffi::c_void;
 use critical_section::Mutex;
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_rt::entry;
 use ws63_rf_rs::alloc::{osal_kfree, osal_kmalloc};
 use ws63_rf_rs::log::{log_event_wifi_print2, memcpy_s, memset_s};
 use ws63_rf_rs::uapi::uapi_systick_get_ms;
-use hisi_riscv_rt::entry;
 
 // A ROM-data global from libwifi_rom_data.a (blob init value 40), proving the
 // blob is whole-archive linked through ws63-rf-rs.

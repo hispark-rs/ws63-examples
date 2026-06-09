@@ -10,8 +10,8 @@ name = "spi_loopback"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../hisi-riscv-hal" }
-hisi-riscv-rt  = { path = "../../hisi-riscv-rt" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 riscv = "0.13"
 
 [profile.release]

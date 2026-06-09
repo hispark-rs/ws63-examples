@@ -10,7 +10,7 @@ name = "wifi_blob_link"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../ws63-pac" }
-hisi-riscv-hal = { path = "../../hisi-riscv-hal" }
-hisi-riscv-rt = { path = "../../hisi-riscv-rt" }
+ws63-pac = { path = "../../../crates/ws63-pac" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt" }
 riscv = "0.13"

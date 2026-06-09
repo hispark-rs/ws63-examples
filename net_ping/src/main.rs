@@ -27,6 +27,10 @@
 
 use core::ptr::{read_volatile, write_volatile};
 
+use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::interrupt::{self, Interrupt};
+use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_riscv_rt::entry;
 use smoltcp::iface::{Config, Interface, SocketSet, SocketStorage};
 use smoltcp::phy::Device;
 use smoltcp::socket::{icmp, udp};
@@ -35,11 +39,7 @@ use smoltcp::wire::{
     EthernetAddress, HardwareAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr, IpEndpoint,
     Ipv4Address,
 };
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::interrupt::{self, Interrupt};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
 use ws63_rf_rs::netif_smoltcp::{Ws63Device, rx_push};
-use hisi_riscv_rt::entry;
 
 // ── ws63-netmac register map (must match ws63-qemu hw/riscv/ws63.c) ──────────
 const NETMAC: usize = 0x4421_0000;

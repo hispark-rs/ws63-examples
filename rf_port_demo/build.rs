@@ -10,7 +10,7 @@ fn main() {
     println!("cargo:rustc-link-arg=-Tws63-link.x");
 
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let lib_dir = PathBuf::from(&manifest).join("../../ws63-rf-rs/ws63-RF/lib");
+    let lib_dir = PathBuf::from(&manifest).join("../../../chips/ws63/rf/ws63-RF/lib");
     let lib_dir = lib_dir.canonicalize().unwrap_or(lib_dir);
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     // Pull in the whole config blob (it is consumed by address, not by symbol

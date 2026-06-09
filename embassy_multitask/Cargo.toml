@@ -10,9 +10,9 @@ name = "embassy_multitask"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../ws63-pac" }
-hisi-riscv-hal = { path = "../../hisi-riscv-hal", features = ["embassy"] }
-hisi-riscv-rt  = { path = "../../hisi-riscv-rt" }
+ws63-pac = { path = "../../../crates/ws63-pac" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["embassy"] }
+hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
 embassy-time = { version = "0.5", features = ["tick-hz-1_000_000"] }
 static_cell = "2"

@@ -16,10 +16,10 @@
 
 use embassy_executor::{Executor, Spawner};
 use embassy_time::Timer;
-use static_cell::StaticCell;
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::interrupt;
 use hisi_riscv_rt::entry;
+use static_cell::StaticCell;
 
 // ── raw UART0 output (avoids sharing a Uart handle across tasks) ──
 const UART0_DATA: *mut u32 = 0x4401_0004 as *mut u32;
