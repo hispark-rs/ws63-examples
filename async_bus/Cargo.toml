@@ -10,7 +10,7 @@ name = "async_bus"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../../crates/ws63-pac" }
+ws63-pac = { path = "../../../crates/pac/ws63-pac" }
 hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["async"] }
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 embedded-hal-async = "1.0"
