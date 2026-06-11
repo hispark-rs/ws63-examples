@@ -6,7 +6,7 @@ members = ["blinky"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/sanchuanhehe/ws63-examples"
+repository = "https://github.com/hispark-rs/ws63-examples"
 
 [workspace.dependencies]
 ws63-pac = "0.1"

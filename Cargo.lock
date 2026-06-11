@@ -167,7 +167,7 @@ dependencies = [
  "paste",
  "portable-atomic",
  "riscv",
- "ws63-pac 0.1.0 (git+https://github.com/sanchuanhehe/ws63-pac)",
+ "ws63-pac 0.1.0 (git+https://github.com/hispark-rs/ws63-pac)",
 ]
 
 [[package]]
@@ -182,7 +182,7 @@ dependencies = [
 [[package]]
 name = "ws63-pac"
 version = "0.1.0"
-source = "git+https://github.com/sanchuanhehe/ws63-pac#c6ae2f3aa29d0bcff650d796e888ceac116976e9"
+source = "git+https://github.com/hispark-rs/ws63-pac#c6ae2f3aa29d0bcff650d796e888ceac116976e9"
 dependencies = [
  "critical-section",
  "riscv",
