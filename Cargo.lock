@@ -7,10 +7,21 @@ name = "blinky"
 version = "0.1.0"
 dependencies = [
  "embedded-hal",
- "riscv",
  "hisi-riscv-hal",
- "ws63-pac 0.1.0",
  "hisi-riscv-rt",
+ "riscv",
+ "ws63-pac 0.1.3",
+]
+
+[[package]]
+name = "bs2x-pac"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8e4405affc8d80d87cb4a535bd5eef8faafd18a32ee01302ca51f148760646b"
+dependencies = [
+ "critical-section",
+ "riscv",
+ "vcell",
 ]
 
 [[package]]
@@ -32,10 +43,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "361a90feb7004eca4019fb28352a9465666b24f840f5c3cddf0ff13920590b89"
 
 [[package]]
+name = "embedded-hal-nb"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fba4268c14288c828995299e59b12babdbe170f6c6d73731af1b4648142e8605"
+dependencies = [
+ "embedded-hal",
+ "nb",
+]
+
+[[package]]
 name = "embedded-io"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
+name = "hisi-riscv-hal"
+version = "0.3.1"
+dependencies = [
+ "bs2x-pac",
+ "cfg-if",
+ "critical-section",
+ "embedded-hal",
+ "embedded-hal-nb",
+ "embedded-io",
+ "nb",
+ "portable-atomic",
+ "ws63-pac 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "hisi-riscv-rt"
+version = "0.2.0"
+dependencies = [
+ "critical-section",
+ "riscv",
+ "riscv-rt",
+ "ws63-pac 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "nb"
@@ -54,6 +100,9 @@ name = "portable-atomic"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
+dependencies = [
+ "critical-section",
+]
 
 [[package]]
 name = "proc-macro2"
@@ -156,23 +205,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77439c1b53d2303b20d9459b1ade71a83c716e3f9c34f3228c00e6f185d6c002"
 
 [[package]]
-name = "hisi-riscv-hal"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
- "critical-section",
- "embedded-hal",
- "embedded-io",
- "nb",
- "paste",
- "portable-atomic",
- "riscv",
- "ws63-pac 0.1.0 (git+https://github.com/hispark-rs/ws63-pac)",
-]
-
-[[package]]
 name = "ws63-pac"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "critical-section",
  "riscv",
@@ -181,20 +215,11 @@ dependencies = [
 
 [[package]]
 name = "ws63-pac"
-version = "0.1.0"
-source = "git+https://github.com/hispark-rs/ws63-pac#c6ae2f3aa29d0bcff650d796e888ceac116976e9"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ccf46405a3fdd2b996e89e36d7c29bf142e853a79c8597c5b674e8ce7288fa9"
 dependencies = [
  "critical-section",
  "riscv",
  "vcell",
-]
-
-[[package]]
-name = "hisi-riscv-rt"
-version = "0.1.0"
-dependencies = [
- "critical-section",
- "riscv",
- "riscv-rt",
- "ws63-pac 0.1.0",
 ]

@@ -10,8 +10,8 @@ repository = "https://github.com/hispark-rs/ws63-examples"
 
 [workspace.dependencies]
 ws63-pac = "0.1"
-hisi-riscv-hal = "0.2"
-hisi-riscv-rt  = "0.1"
+hisi-riscv-hal = "0.3"
+hisi-riscv-rt  = "0.2"
 riscv = "0.13"
 riscv-rt = "0.14"
 embedded-hal = "1.0.0"
