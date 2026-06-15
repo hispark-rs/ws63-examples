@@ -77,7 +77,9 @@ unsafe extern "C" {
 extern "C" fn atrap_handle() {
     let mcause: u32;
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
-    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == 26 {
+    // Compare against the HAL's chip-correct alarm IRQ (WS63 = 26, BS2X = 53) rather
+    // than a hardcoded literal — the example stays correct across chips.
+    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == hisi_riscv_hal::embassy::ALARM_IRQ {
         hisi_riscv_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
     }
 }
