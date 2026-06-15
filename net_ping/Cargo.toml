@@ -10,7 +10,7 @@ name = "net_ping"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt" }
 # The netif seam (set_tx_sink / rx_push / Ws63Device) lives behind `net`.
 ws63-rf-rs = { path = "../../../chips/ws63/rf", features = ["net"] }

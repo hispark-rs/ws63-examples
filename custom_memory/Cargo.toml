@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../../crates/pac/ws63-pac" }
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
 # default-features = false turns OFF hisi-riscv-rt's `bundled-memory-x`, so hisi-riscv-rt does
 # NOT put its memory.x on the link search path. This crate supplies its own (see
 # build.rs + memory.x). We must re-select `chip-ws63` (also a default feature) so

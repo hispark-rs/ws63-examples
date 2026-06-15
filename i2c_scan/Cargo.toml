@@ -10,7 +10,7 @@ name = "i2c_scan"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 riscv = "0.13"
 
