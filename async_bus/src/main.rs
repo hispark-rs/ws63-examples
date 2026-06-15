@@ -14,7 +14,7 @@
 use embedded_hal_async::spi::SpiBus as _;
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::asynch::block_on;
-use hisi_riscv_hal::i2c::I2c;
+use hisi_riscv_hal::i2c::{I2c, Speed};
 use hisi_riscv_hal::lsadc::LsAdc;
 use hisi_riscv_hal::spi::{Config as SpiConfig, Spi};
 use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
@@ -30,7 +30,7 @@ fn main() -> ! {
     );
 
     let mut spi = Spi::new_spi0(p.SPI0, SpiConfig::default());
-    let mut i2c = I2c::new_i2c0(p.I2C0, 100_000);
+    let mut i2c = I2c::new_i2c0(p.I2C0, Speed::Standard);
     let mut adc = LsAdc::new(p.LSADC);
 
     let ok = block_on(async {
