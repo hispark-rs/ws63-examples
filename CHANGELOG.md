@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   longer exercises it (matches the silicon-faithful `ws63-qemu` DMA model).
 
 ### Added
+- **xip_flash_clk_hazard** — demonstrates the issue-#4 hazard: re-switching the flash clock (CLDO_CRG_CLK_SEL bit 18) while executing XIP from flash crashes instruction fetch; ws63-qemu now faults it
 
 - **uart_hello** — UART0 serial print example (QEMU-friendly)
 - **timer_irq** — TIMER_0 interrupt (IRQ 26) handling example
