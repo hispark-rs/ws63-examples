@@ -1,0 +1,20 @@
+[package]
+name = "xip_flash_clk_hazard"
+version = "0.1.0"
+edition = "2024"
+description = "WS63: re-switching the flash clock from XIP crashes instruction fetch (hazard demo)"
+license = "MIT"
+
+[[bin]]
+name = "xip_flash_clk_hazard"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../../crates/pac/ws63-pac" }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
+hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
+riscv = "0.13"
+
+[profile.release]
+opt-level = "s"
+lto = true
