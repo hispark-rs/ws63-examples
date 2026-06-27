@@ -1,0 +1,30 @@
+name: fmt
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure rustfmt is available
+        run: rustup component add rustfmt
+
+      - name: Check formatting (every example, edition 2024)
+        run: |
+          # The root workspace lists only `blinky` as a member, so `cargo fmt --all`
+          # would silently SKIP the other example crates — which is exactly how an
+          # unformatted dma_loopback once slipped through to the parent (hisi-riscv-rs)
+          # CI. Run rustfmt directly over every tracked .rs file so ALL examples are
+          # checked. `--edition 2024` matches the crates; default rustfmt config, same
+          # result as the parent's `cargo fmt --all -- --check`.
+          find . -path ./target -prune -o -name '*.rs' -print0 \
+            | xargs -0 -r rustfmt --edition 2024 --check
