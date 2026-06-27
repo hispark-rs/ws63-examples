@@ -6,13 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **dma_loopback** — retargeted part 2 (mem->mem) from the secure DMA (SDMA
+  @0x520A_0000) to the primary M_DMA channel 1. SDMA is never provisioned on WS63
+  silicon — a transfer there stalls AXI and hangs the bus — so the example no
+  longer exercises it (matches the silicon-faithful `ws63-qemu` DMA model).
+
 ### Added
 
 - **uart_hello** — UART0 serial print example (QEMU-friendly)
 - **timer_irq** — TIMER_0 interrupt (IRQ 26) handling example
 - **gpio_irq** — GPIO0 pin0 interrupt (IRQ 33) example with custom local IRQ >=32
 - **reset_demo** — System reset example (software_reset + reset_reason)
-- **dma_loopback** — Peripheral DMA memory-to-SPI0 loopback with SDMA channel example
+- **dma_loopback** — Peripheral DMA mem<->SPI0 loopback + mem->mem, both on the primary M_DMA
 - **wifi_blob_link** — Phase-3 Wi-Fi ROM blob linking spike with `__wifi_pkt_ram_end__` defsym
 - **rf_port_demo** — ws63-rf-rs porting layer + blob link exercise
 - **sched_demo** — ws63-rf-rs cooperative scheduler validation (later moved to ws63-rf-rs)
