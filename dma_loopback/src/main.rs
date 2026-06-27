@@ -157,7 +157,7 @@ fn main() -> ! {
         src2.as_ptr() as u32,
         dst2.as_ptr() as u32,
         N as u16,
-        &DmaChannelConfig::default(),  // default flow control = mem -> mem
+        &DmaChannelConfig::default(), // default flow control = mem -> mem
     );
     let s_done = wait_done(&dma, 1);
     dma.clear_transfer_interrupt(1);
