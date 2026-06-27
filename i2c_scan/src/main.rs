@@ -9,7 +9,7 @@
 #![no_main]
 
 use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::i2c::I2c;
+use hisi_riscv_hal::i2c::{I2c, Speed};
 use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 
@@ -26,7 +26,7 @@ fn main() -> ! {
     let uart = Uart::new_uart0(p.UART0, UartConfig::default());
     uart.write(0, b"\r\nWS63 I2C scan (I2C0, 100 kHz, addr 0x08..0x77)\r\n");
 
-    let mut i2c = I2c::new_i2c0(p.I2C0, 100_000);
+    let mut i2c = I2c::new_i2c0(p.I2C0, Speed::Standard);
 
     let mut found = 0u32;
     for addr in 0x08u8..=0x77 {
