@@ -1,8 +1,8 @@
-//! WS63 DMA example: peripheral-paced DMA + secure-DMA (SDMA) channels.
+//! WS63 DMA example: peripheral-paced DMA + mem-to-mem on the primary M_DMA.
 //!
 //! Runs on the `ws63-qemu` machine model and validates the DMA controller end
 //! to end without real hardware. Like `uart_hello`, it does NOT init the clocks
-//! — it touches only UART0 (print), the DMA/SDMA controllers and SPI0.
+//! — it touches only UART0 (print), the M_DMA controller and SPI0.
 //!
 //! Two transfers, each verified and reported over UART0 (115200 8N1):
 //!
@@ -13,9 +13,10 @@
 //!    reads it back. The round-trip exercises the flow-control type and
 //!    handshaking-ID decode and the fixed-address peripheral routing.
 //!
-//! 2. **Secure DMA, logical channel 8 (SDMA).** A `mem -> mem` transfer issued
-//!    on `DmaDriver<Sdma0>` channel **8**, which the HAL maps to the secure
-//!    controller's physical channel 0 (logical 8-11 -> physical 0-3).
+//! 2. **Memory-to-memory (M_DMA channel 1).** A `mem -> mem` transfer on the
+//!    primary controller. (The secure DMA / SDMA @0x520A_0000 is never
+//!    provisioned on WS63 silicon — a transfer there stalls AXI and hangs the
+//!    bus — so vendor mem->mem always uses the primary M_DMA.)
 //!
 //! Completion is observed by polling the raw interrupt-status register
 //! (`dmac_ori_int_st`), so no DMA interrupt wiring is required.
@@ -29,7 +30,7 @@
 #![no_main]
 
 use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::dma::{Dma0, DmaChannelConfig, DmaDriver, DmaInstance, DmaPeripheral, Sdma0};
+use hisi_riscv_hal::dma::{Dma0, DmaChannelConfig, DmaDriver, DmaInstance, DmaPeripheral};
 use hisi_riscv_hal::spi::{Config as SpiConfig, Spi};
 use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
@@ -133,7 +134,7 @@ fn main() -> ! {
     uart.write(0, if part1 { b" OK\r\n" } else { b" FAIL\r\n" });
     ok &= part1;
 
-    // ── Part 2: SDMA logical channel 8 (mem -> mem) ─────────────────────────
+    // ── Part 2: mem -> mem on the primary M_DMA (channel 1) ─────────────────
     let src2: [u32; N] = [
         0xaaaa_0001,
         0xaaaa_0002,
@@ -146,20 +147,22 @@ fn main() -> ! {
     ];
     let dst2: [u32; N] = [0u32; N];
 
-    let mut sdma = DmaDriver::<Sdma0>::new_sdma(p.SDMA);
-    sdma.enable_controller();
-    // Logical channel 8 -> physical channel 0 on the secure controller.
-    sdma.configure_channel(
-        8,
+    // The secure DMA (SDMA @0x520A_0000) is NEVER provisioned on WS63 silicon
+    // (CONFIG_DMA_SUPPORT_SMDMA unset, g_sdma_base_addr unassigned): a transfer
+    // there stalls an AXI beat forever and drops the debug link. Vendor mem->mem
+    // always uses the primary M_DMA, so this runs on Dma0 channel 1 (channel 0
+    // was used by part 1).
+    dma.configure_channel(
+        1,
         src2.as_ptr() as u32,
         dst2.as_ptr() as u32,
         N as u16,
-        &DmaChannelConfig::default(),
+        &DmaChannelConfig::default(), // default flow control = mem -> mem
     );
-    let s_done = wait_done(&sdma, 0);
-    sdma.clear_transfer_interrupt(8);
+    let s_done = wait_done(&dma, 1);
+    dma.clear_transfer_interrupt(1);
 
-    uart.write(0, b"part2 mem->mem (SDMA ch8->phys0): ");
+    uart.write(0, b"part2 mem->mem (MDMA ch1): ");
     let mut part2 = s_done;
     for (i, &want) in src2.iter().enumerate() {
         let got = unsafe { core::ptr::read_volatile(dst2.as_ptr().add(i)) };

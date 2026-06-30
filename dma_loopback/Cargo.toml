@@ -2,7 +2,7 @@
 name = "dma_loopback"
 version = "0.1.0"
 edition = "2024"
-description = "WS63 DMA example: peripheral-paced mem<->SPI loopback (MDMA) + SDMA channel"
+description = "WS63 DMA example: peripheral-paced mem<->SPI loopback + mem->mem, both on M_DMA"
 license = "MIT"
 
 [[bin]]
