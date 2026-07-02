@@ -14,9 +14,3 @@ ws63-pac = { path = "../../../crates/pac/ws63-pac" }
 hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 riscv = "0.13"
-
-[profile.release]
-opt-level = "s"
-# LTO off: this example overrides hisi-riscv-rt's weak `mie0_interrupt_handler`
-# (defined in startup.S); LTO mis-resolves the weak-vs-strong override.
-lto = false

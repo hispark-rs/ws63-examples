@@ -20,7 +20,3 @@ hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws
 # critical-section impl.
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63"] }
 riscv = "0.13"
-
-[profile.release]
-opt-level = "s"
-lto = true

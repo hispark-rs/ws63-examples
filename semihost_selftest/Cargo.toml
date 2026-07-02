@@ -11,7 +11,3 @@ path = "src/main.rs"
 
 [dependencies]
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt" }
-
-[profile.release]
-opt-level = "s"
-lto = true
