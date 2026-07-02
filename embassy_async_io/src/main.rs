@@ -60,7 +60,7 @@ extern "C" fn atrap_handle() {
     if (mcause & 0x8000_0000) != 0 {
         match mcause & 0xFFF {
             26 => hisi_riscv_hal::embassy::on_alarm_interrupt(), // embassy-time alarm
-            33 => hisi_riscv_hal::gpio::on_interrupt(0),         // GPIO0 edge
+            33 => hisi_riscv_hal::gpio::on_interrupt(hisi_riscv_hal::gpio::GpioBank::Bank0), // GPIO0 edge
             _ => {}
         }
     }
@@ -104,10 +104,7 @@ fn main() -> ! {
     });
     tcxo.enable();
     let banner = Uart::new_uart0(unsafe { Uart0::steal() }, UartConfig::default());
-    banner.write(
-        0,
-        b"\r\nWS63 embassy async-IO (GPIO Wait + async UART, timed by embassy-time)\r\n",
-    );
+    banner.write(b"\r\nWS63 embassy async-IO (GPIO Wait + async UART, timed by embassy-time)\r\n");
 
     unsafe {
         core::ptr::write_volatile(GPIO_OEN, 0); // GPIO0 pin0 = output (drives loopback)

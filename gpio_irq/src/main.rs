@@ -111,17 +111,14 @@ fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) 
         }
         &buf[i..]
     };
-    uart.write(0, s);
+    uart.write(s);
 }
 
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
-    uart.write(
-        0,
-        b"\r\nWS63 GPIO-IRQ test (GPIO0 pin0 -> IRQ 33, custom local)\r\n",
-    );
+    uart.write(b"\r\nWS63 GPIO-IRQ test (GPIO0 pin0 -> IRQ 33, custom local)\r\n");
 
     unsafe {
         core::arch::asm!("csrw mtvec, {0}", in(reg) girq_trap as *const () as usize); // direct mode
@@ -145,11 +142,11 @@ fn main() -> ! {
         let c = unsafe { core::ptr::read_volatile(&raw const COUNT) };
         if c != last {
             last = c;
-            uart.write(0, b"gpio irq #");
+            uart.write(b"gpio irq #");
             put_u32(&uart, c);
-            uart.write(0, b"\r\n");
+            uart.write(b"\r\n");
             if c == 5 {
-                uart.write(0, b"OK: custom local IRQ (>=32) delivered\r\n");
+                uart.write(b"OK: custom local IRQ (>=32) delivered\r\n");
             }
         }
         for _ in 0..200_000 {

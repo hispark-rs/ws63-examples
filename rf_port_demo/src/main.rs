@@ -71,16 +71,16 @@ fn hex8(n: u32) -> [u8; 8] {
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
-    uart.write(0, b"\r\nWS63 ws63-rf-rs porting-layer demo\r\n");
+    uart.write(b"\r\nWS63 ws63-rf-rs porting-layer demo\r\n");
 
     ws63_rf_rs::set_log_sink(cap_sink);
     let mut ok = true;
 
     // 1. osal_kmalloc / osal_kfree: zero-initialised, read/write, freeable.
     let mem = osal_kmalloc(256);
-    uart.write(0, b"osal_kmalloc(256)    = 0x");
-    uart.write(0, &hex8(mem as u32));
-    uart.write(0, b"\r\n");
+    uart.write(b"osal_kmalloc(256)    = 0x");
+    uart.write(&hex8(mem as u32));
+    uart.write(b"\r\n");
     if mem.is_null() {
         ok = false;
     } else {
@@ -104,11 +104,11 @@ fn main() -> ! {
     }
     let t2 = uapi_systick_get_ms();
     ok &= t2 >= t1;
-    uart.write(0, b"uapi_systick_get_ms  : t1=0x");
-    uart.write(0, &hex8(t1 as u32));
-    uart.write(0, b" t2=0x");
-    uart.write(0, &hex8(t2 as u32));
-    uart.write(0, b"\r\n");
+    uart.write(b"uapi_systick_get_ms  : t1=0x");
+    uart.write(&hex8(t1 as u32));
+    uart.write(b" t2=0x");
+    uart.write(&hex8(t2 as u32));
+    uart.write(b"\r\n");
 
     // 3. memset_s / memcpy_s: copy works; over-large copy is refused.
     let mut src = [0u8; 16];
@@ -129,42 +129,36 @@ fn main() -> ! {
         16,
     );
     ok &= m1 == 0 && m2 == 0 && copied && m3 != 0;
-    uart.write(
-        0,
-        if copied {
-            b"memcpy_s/memset_s    : OK\r\n"
-        } else {
-            b"memcpy_s/memset_s    : FAIL\r\n"
-        },
-    );
+    uart.write(if copied {
+        b"memcpy_s/memset_s    : OK\r\n"
+    } else {
+        b"memcpy_s/memset_s    : FAIL\r\n"
+    });
 
     // 4. log_event_wifi_print2 routes through the sink.
     log_event_wifi_print2(c"blob log via ws63-rf-rs sink".as_ptr());
     let cap_len = critical_section::with(|cs| CAP.borrow_ref(cs).1);
     ok &= cap_len > 0;
-    uart.write(0, b"log sink captured    : ");
+    uart.write(b"log sink captured    : ");
     critical_section::with(|cs| {
         let g = CAP.borrow_ref(cs);
         let (buf, len) = &*g;
-        uart.write(0, &buf[..*len]);
+        uart.write(&buf[..*len]);
     });
-    uart.write(0, b"\r\n");
+    uart.write(b"\r\n");
 
     // 5. ROM-data blob linked through ws63-rf-rs (g_buf_size init = 40).
     let buf_size = unsafe { core::ptr::read_volatile(&raw const g_buf_size) };
-    uart.write(0, b"g_buf_size (rom_data)= 0x");
-    uart.write(0, &hex8(buf_size as u32));
-    uart.write(0, b"\r\n");
+    uart.write(b"g_buf_size (rom_data)= 0x");
+    uart.write(&hex8(buf_size as u32));
+    uart.write(b"\r\n");
     ok &= buf_size == 40;
 
-    uart.write(
-        0,
-        if ok {
-            b"RF PORT DEMO: PASS\r\n"
-        } else {
-            b"RF PORT DEMO: FAIL\r\n"
-        },
-    );
+    uart.write(if ok {
+        b"RF PORT DEMO: PASS\r\n"
+    } else {
+        b"RF PORT DEMO: FAIL\r\n"
+    });
 
     loop {
         core::hint::spin_loop();
