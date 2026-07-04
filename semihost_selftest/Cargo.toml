@@ -10,4 +10,4 @@ name = "semihost_selftest"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt" }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x"] }
