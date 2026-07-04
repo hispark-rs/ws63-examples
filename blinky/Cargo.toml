@@ -15,7 +15,3 @@ hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 embedded-hal = "1.0.0"
 riscv = "0.13"
-
-[profile.release]
-opt-level = "s"
-lto = true

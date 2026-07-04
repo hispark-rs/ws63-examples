@@ -8,7 +8,7 @@
 //!
 //! The HAL async drivers deliberately do NOT install a trap handler, so this
 //! example owns its `mtvec` (direct mode) and routes TIMER_INT0 to
-//! `timer::on_interrupt(0)` — exactly like the blocking `timer_irq` example.
+//! `timer::on_interrupt(TimerChannel::Channel0)` — exactly like the blocking `timer_irq` example.
 
 #![no_std]
 #![no_main]
@@ -17,7 +17,7 @@ use embedded_hal_async::delay::DelayNs;
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::asynch::block_on;
 use hisi_riscv_hal::interrupt;
-use hisi_riscv_hal::timer::{self, AsyncDelay};
+use hisi_riscv_hal::timer::{self, AsyncDelay, TimerChannel};
 use hisi_riscv_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
@@ -76,7 +76,7 @@ extern "C" fn atrap_handle() {
     let mcause: u32;
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
     if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == TIMER_INT0 {
-        timer::on_interrupt(0); // EOI + stop one-shot + wake the AsyncDelay future
+        timer::on_interrupt(TimerChannel::Channel0); // EOI + stop one-shot + wake the AsyncDelay future
     }
 }
 
@@ -94,19 +94,16 @@ fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) 
         }
         &buf[i..]
     };
-    uart.write(0, s);
+    uart.write(s);
 }
 
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
-    uart.write(
-        0,
-        b"\r\nWS63 async delay (embedded-hal-async DelayNs on TIMER0)\r\n",
-    );
+    uart.write(b"\r\nWS63 async delay (embedded-hal-async DelayNs on TIMER0)\r\n");
 
-    let mut delay = AsyncDelay::new(p.TIMER, 0);
+    let mut delay = AsyncDelay::new(p.TIMER, TimerChannel::Channel0);
 
     unsafe {
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize); // direct mode
@@ -117,11 +114,11 @@ fn main() -> ! {
     block_on(async {
         for i in 0..5u32 {
             delay.delay_ms(20).await;
-            uart.write(0, b"async tick #");
+            uart.write(b"async tick #");
             put_u32(&uart, i + 1);
-            uart.write(0, b"\r\n");
+            uart.write(b"\r\n");
         }
-        uart.write(0, b"ASYNC DELAY: PASS\r\n");
+        uart.write(b"ASYNC DELAY: PASS\r\n");
     });
 
     loop {

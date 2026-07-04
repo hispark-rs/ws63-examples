@@ -39,18 +39,15 @@ fn main() -> ! {
     // The symbol's address IS the marker value (set via PROVIDE in memory.x).
     let marker = core::ptr::addr_of!(__custom_memory_marker) as usize as u32;
 
-    uart.write(
-        0,
-        b"\r\ncustom_memory: booted from per-example memory.x\r\n",
-    );
-    uart.write(0, b"custom_memory: marker=0x");
+    uart.write(b"\r\ncustom_memory: booted from per-example memory.x\r\n");
+    uart.write(b"custom_memory: marker=0x");
     let mut buf = [0u8; 8];
-    uart.write(0, u32_hex(marker, &mut buf));
-    uart.write(0, b"\r\n");
+    uart.write(u32_hex(marker, &mut buf));
+    uart.write(b"\r\n");
     if marker == 0x00C0_FFEE {
-        uart.write(0, b"custom_memory: OK (per-example memory.x in effect)\r\n");
+        uart.write(b"custom_memory: OK (per-example memory.x in effect)\r\n");
     } else {
-        uart.write(0, b"custom_memory: FAIL (unexpected memory.x)\r\n");
+        uart.write(b"custom_memory: FAIL (unexpected memory.x)\r\n");
     }
 
     loop {

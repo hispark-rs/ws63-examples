@@ -11,11 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../../crates/pac/ws63-pac" }
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "async"] }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "async", "unstable"] }
 hisi-riscv-rt  = { path = "../../../crates/hisi-riscv-rt" }
 embedded-hal-async = "1.0"
 riscv = "0.13"
-
-[profile.release]
-opt-level = "s"
-lto = true

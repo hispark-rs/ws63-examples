@@ -102,7 +102,7 @@ fn rd<T: Copy>(p: *const T) -> T {
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
-    uart.write(0, b"\r\nWS63 Wi-Fi ROM blob link spike\r\n");
+    uart.write(b"\r\nWS63 Wi-Fi ROM blob link spike\r\n");
 
     // Read every config global (volatile: defined in another object). Reading
     // them all also keeps every section live under --gc-sections.
@@ -134,9 +134,9 @@ fn main() -> ! {
         (&b"&g_dmac_alg_main stub= 0x"[..], dmac_stub),
     ];
     for (label, val) in report {
-        uart.write(0, label);
-        uart.write(0, &hex8(val));
-        uart.write(0, b"\r\n");
+        uart.write(label);
+        uart.write(&hex8(val));
+        uart.write(b"\r\n");
     }
 
     // Verify ALL 13 config globals carry their vendor-initialised values and
@@ -158,20 +158,17 @@ fn main() -> ! {
     ];
     let passed = checks.iter().filter(|&&c| c).count();
 
-    uart.write(0, b"config globals verified: ");
-    uart.write(0, &dec2(passed as u8));
-    uart.write(0, b"/");
-    uart.write(0, &dec2(checks.len() as u8));
-    uart.write(0, b"\r\n");
+    uart.write(b"config globals verified: ");
+    uart.write(&dec2(passed as u8));
+    uart.write(b"/");
+    uart.write(&dec2(checks.len() as u8));
+    uart.write(b"\r\n");
 
-    uart.write(
-        0,
-        if passed == checks.len() {
-            b"BLOB LINK SPIKE: PASS\r\n"
-        } else {
-            b"BLOB LINK SPIKE: FAIL\r\n"
-        },
-    );
+    uart.write(if passed == checks.len() {
+        b"BLOB LINK SPIKE: PASS\r\n"
+    } else {
+        b"BLOB LINK SPIKE: FAIL\r\n"
+    });
 
     loop {
         core::hint::spin_loop();

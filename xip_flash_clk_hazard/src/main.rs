@@ -36,7 +36,7 @@ fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
 
-    uart.write(0, b"\r\nXIP-HAZARD: before flash-clock switch\r\n");
+    uart.write(b"\r\nXIP-HAZARD: before flash-clock switch\r\n");
 
     // Switch the flash clock to the PLL *while executing XIP from flash*. On
     // silicon (and now in ws63-qemu) the next fetch from flash crashes.
@@ -47,7 +47,7 @@ fn main() -> ! {
 
     // Unreachable on real silicon / ws63-qemu: the fetch of this code (in flash)
     // faults. A model that lets this print is giving a dangerous false green.
-    uart.write(0, b"XIP-HAZARD: after switch (BUG: should not appear)\r\n");
+    uart.write(b"XIP-HAZARD: after switch (BUG: should not appear)\r\n");
 
     loop {
         core::hint::spin_loop();

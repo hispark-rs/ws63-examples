@@ -99,14 +99,14 @@ fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) 
         }
         &buf[i..]
     };
-    uart.write(0, s);
+    uart.write(s);
 }
 
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, Config::default());
-    uart.write(0, b"\r\nWS63 timer-IRQ test (TIMER_0 -> IRQ 26)\r\n");
+    uart.write(b"\r\nWS63 timer-IRQ test (TIMER_0 -> IRQ 26)\r\n");
 
     unsafe {
         // Install our own direct-mode mtvec (low 2 bits = 0 => Direct).
@@ -129,11 +129,11 @@ fn main() -> ! {
         let t = unsafe { core::ptr::read_volatile(&raw const TICKS) };
         if t != last {
             last = t;
-            uart.write(0, b"timer irq #");
+            uart.write(b"timer irq #");
             put_u32(&uart, t);
-            uart.write(0, b"\r\n");
+            uart.write(b"\r\n");
             if t == 5 {
-                uart.write(0, b"OK: timer interrupts delivered\r\n");
+                uart.write(b"OK: timer interrupts delivered\r\n");
             }
         }
     }

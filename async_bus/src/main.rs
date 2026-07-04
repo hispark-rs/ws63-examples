@@ -24,10 +24,7 @@ use hisi_riscv_rt::entry;
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, UartConfig::default());
-    uart.write(
-        0,
-        b"\r\nWS63 async bus (embedded-hal-async SpiBus + I2c)\r\n",
-    );
+    uart.write(b"\r\nWS63 async bus (embedded-hal-async SpiBus + I2c)\r\n");
 
     let mut spi = Spi::new_spi0(p.SPI0, SpiConfig::default());
     let mut i2c = I2c::new_i2c0(p.I2C0, Speed::Standard);
@@ -40,18 +37,15 @@ fn main() -> ! {
         let tx = [0xA5u8, 0x3C, 0xFF, 0x01];
         let mut buf = tx;
         if spi.transfer_in_place(&mut buf).await.is_ok() {
-            uart.write(0, b"  spi.transfer_in_place().await -> ");
-            uart.write(
-                0,
-                if buf == tx {
-                    b"loopback OK\r\n"
-                } else {
-                    b"MISMATCH\r\n"
-                },
-            );
+            uart.write(b"  spi.transfer_in_place().await -> ");
+            uart.write(if buf == tx {
+                b"loopback OK\r\n"
+            } else {
+                b"MISMATCH\r\n"
+            });
             all &= buf == tx;
         } else {
-            uart.write(0, b"  spi error\r\n");
+            uart.write(b"  spi error\r\n");
             all = false;
         }
 
@@ -60,21 +54,18 @@ fn main() -> ! {
         match embedded_hal_async::i2c::I2c::write_read(&mut i2c, 0x42, &[0xDE, 0xAD], &mut rd).await
         {
             Ok(()) => {
-                uart.write(0, b"  i2c.write_read().await -> ok\r\n");
+                uart.write(b"  i2c.write_read().await -> ok\r\n");
             }
             Err(_) => {
-                uart.write(
-                    0,
-                    b"  i2c.write_read().await -> err (no slave; trait path exercised)\r\n",
-                );
+                uart.write(b"  i2c.write_read().await -> err (no slave; trait path exercised)\r\n");
             }
         }
 
         // LSADC: async conversion (IRQ 72; FIFO filled synchronously on QEMU).
         match adc.read_async().await {
-            Some(_s) => uart.write(0, b"  adc.read_async().await -> sample ok\r\n"),
+            Some(_s) => uart.write(b"  adc.read_async().await -> sample ok\r\n"),
             None => {
-                uart.write(0, b"  adc.read_async().await -> no sample\r\n");
+                uart.write(b"  adc.read_async().await -> no sample\r\n");
                 all = false;
             }
         }
@@ -82,14 +73,11 @@ fn main() -> ! {
         all
     });
 
-    uart.write(
-        0,
-        if ok {
-            b"ASYNC BUS: PASS\r\n"
-        } else {
-            b"ASYNC BUS: FAIL\r\n"
-        },
-    );
+    uart.write(if ok {
+        b"ASYNC BUS: PASS\r\n"
+    } else {
+        b"ASYNC BUS: FAIL\r\n"
+    });
 
     loop {
         core::hint::spin_loop();

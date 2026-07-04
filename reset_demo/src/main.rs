@@ -36,23 +36,23 @@ fn main() -> ! {
     let uart = Uart::new_uart0(p.UART0, Config::default());
     let system = System::new(p.SYS_CTL0, p.GLB_CTL_M, p.CLDO_CRG);
 
-    uart.write(0, b"\r\nWS63 system-reset test\r\n");
+    uart.write(b"\r\nWS63 system-reset test\r\n");
 
     let reason = system.reset_reason();
-    uart.write(0, b"reset reason: ");
-    uart.write(0, reason_str(reason));
-    uart.write(0, b"\r\n");
+    uart.write(b"reset reason: ");
+    uart.write(reason_str(reason));
+    uart.write(b"\r\n");
 
     if reason == ResetReason::Software {
         // Second boot: the soft reset we triggered was recorded and decoded.
-        uart.write(0, b"OK: software reset observed\r\n");
+        uart.write(b"OK: software reset observed\r\n");
         loop {
             core::hint::spin_loop();
         }
     }
 
     // First (cold) boot: trigger a software reset and never return.
-    uart.write(0, b"cold boot -> triggering software_reset()\r\n");
+    uart.write(b"cold boot -> triggering software_reset()\r\n");
     system.software_reset();
 }
 

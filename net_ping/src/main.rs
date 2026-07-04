@@ -208,7 +208,7 @@ fn put_u32(uart: &Uart0<'_>, mut n: u32) {
         }
         &buf[i..]
     };
-    uart.write(0, s);
+    uart.write(s);
 }
 
 fn put_mac(uart: &Uart0<'_>, mac: &[u8; 6]) {
@@ -224,7 +224,7 @@ fn put_mac(uart: &Uart0<'_>, mac: &[u8; 6]) {
         out[k + 1] = HEX[(b & 0xF) as usize];
         k += 2;
     }
-    uart.write(0, &out[..k]);
+    uart.write(&out[..k]);
 }
 
 const PING_PAYLOAD: [u8; 16] = *b"ws63-rs ping....";
@@ -233,10 +233,7 @@ const PING_PAYLOAD: [u8; 16] = *b"ws63-rs ping....";
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, UartConfig::default());
-    uart.write(
-        0,
-        b"\r\nWS63 net_ping: smoltcp over ws63-netmac + SLIRP (no RF)\r\n",
-    );
+    uart.write(b"\r\nWS63 net_ping: smoltcp over ws63-netmac + SLIRP (no RF)\r\n");
 
     // 1. Bring up the MAC: read its hardware MAC, enable RX + RX interrupt.
     let (lo, hi) = unsafe {
@@ -253,9 +250,9 @@ fn main() -> ! {
         hi as u8,
         (hi >> 8) as u8,
     ];
-    uart.write(0, b"mac             = ");
+    uart.write(b"mac             = ");
     put_mac(&uart, &mac);
-    uart.write(0, b"\r\nip              = 10.0.2.15/24 gw 10.0.2.2\r\n");
+    uart.write(b"\r\nip              = 10.0.2.15/24 gw 10.0.2.2\r\n");
     unsafe { write_volatile(NM_CTRL as *mut u32, NM_EN | NM_RX_IRQ_EN) };
 
     // 2. Install the TX sink + the WLMAC RX interrupt vector.
@@ -333,9 +330,9 @@ fn main() -> ! {
                 if let Ok(buf) = s.send(repr.buffer_len(), gw) {
                     let mut pkt = Icmpv4Packet::new_unchecked(buf);
                     repr.emit(&mut pkt, &checksum);
-                    uart.write(0, b"ping  seq=");
+                    uart.write(b"ping  seq=");
                     put_u32(&uart, seq as u32);
-                    uart.write(0, b" -> 10.0.2.2\r\n");
+                    uart.write(b" -> 10.0.2.2\r\n");
                 }
                 seq += 1;
                 next_send = now + 100;
@@ -346,9 +343,9 @@ fn main() -> ! {
                 && let Ok(Icmpv4Repr::EchoReply { seq_no, .. }) = Icmpv4Repr::parse(&pkt, &checksum)
             {
                 received += 1;
-                uart.write(0, b"reply seq=");
+                uart.write(b"reply seq=");
                 put_u32(&uart, seq_no as u32);
-                uart.write(0, b" <- 10.0.2.2\r\n");
+                uart.write(b" <- 10.0.2.2\r\n");
             }
         }
 
@@ -363,20 +360,20 @@ fn main() -> ! {
                     .is_ok()
             {
                 udp_sent = true;
-                uart.write(0, b"udp   tx -> 10.0.2.2:9 (16 bytes)\r\n");
+                uart.write(b"udp   tx -> 10.0.2.2:9 (16 bytes)\r\n");
             }
         }
 
         if received >= 1 {
-            uart.write(0, b"rx irq hits     = ");
+            uart.write(b"rx irq hits     = ");
             put_u32(&uart, unsafe { read_volatile(&raw const IRQ_HITS) });
-            uart.write(0, b"\r\nNET PING: PASS\r\n");
+            uart.write(b"\r\nNET PING: PASS\r\n");
             break;
         }
         if now.saturating_sub(start) > 5000 {
-            uart.write(0, b"rx irq hits     = ");
+            uart.write(b"rx irq hits     = ");
             put_u32(&uart, unsafe { read_volatile(&raw const IRQ_HITS) });
-            uart.write(0, b"\r\nNET PING: FAIL (no echo reply)\r\n");
+            uart.write(b"\r\nNET PING: FAIL (no echo reply)\r\n");
             break;
         }
         for _ in 0..20_000 {
