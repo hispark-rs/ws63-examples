@@ -5,6 +5,7 @@
 
 use hisi_riscv_hal::{peripherals::Peripherals, uart::{Config, Uart, UartClock}};
 use hisi_riscv_rt::entry;
+use hisi_panic_handler as _;
 
 #[entry]
 fn main() -> ! {
@@ -24,6 +25,3 @@ fn main() -> ! {
         for _ in 0..5_000_000 { core::hint::spin_loop(); }
     }
 }
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! { loop { core::hint::spin_loop(); } }
