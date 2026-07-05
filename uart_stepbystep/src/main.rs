@@ -47,5 +47,4 @@ fn main() -> ! {
     }
 }
 
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! { loop { core::hint::spin_loop(); } }
+use hisi_panic_handler as _;
