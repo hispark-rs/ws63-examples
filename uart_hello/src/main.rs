@@ -1,61 +1,29 @@
-//! WS63 UART hello-world example.
-//!
-//! Prints a banner and a running tick counter over UART0 (115200 8N1).
-//!
-//! Designed to run on the `ws63-qemu` machine model: it deliberately does NOT
-//! call `clock_init::init_clocks()`, so it touches only UART0 registers
-//! (0x4401_0000) and needs no SYS_CTL0/CLDO_CRG modeling. On QEMU the output
-//! appears on `-serial mon:stdio`; on real silicon you would init the clocks
-//! first so the baud divisor matches the PLL.
+//! WS63 UART hello-world — HAL UART driver.
 
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_hal::{peripherals::Peripherals, uart::{Config, Uart, UartClock}};
 use hisi_riscv_rt::entry;
-
-/// Format a u32 as decimal into `buf`, returning the used slice.
-fn u32_to_dec(mut n: u32, buf: &mut [u8; 10]) -> &[u8] {
-    if n == 0 {
-        buf[0] = b'0';
-        return &buf[..1];
-    }
-    let mut i = buf.len();
-    while n > 0 {
-        i -= 1;
-        buf[i] = b'0' + (n % 10) as u8;
-        n /= 10;
-    }
-    &buf[i..]
-}
 
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
-    let uart = Uart::new_uart0(p.UART0, Config::default());
+    let uart = Uart::new_uart0(p.UART0,
+        Config { clock: UartClock::Boot, ..Config::default() });
 
-    uart.write(b"\r\nHello from WS63 on QEMU!\r\n");
-    uart.write(b"ws63-qemu: UART0 @ 0x44010000 is alive.\r\n");
+    uart.write(b"\r\nHello from WS63 (HAL UART driver)!\r\n");
 
     let mut tick: u32 = 0;
     loop {
-        let mut buf = [0u8; 10];
-        uart.write(b"tick ");
-        uart.write(u32_to_dec(tick, &mut buf));
-        uart.write(b"\r\n");
+        let mut buf = [0u8; 10]; let mut i = buf.len(); let mut n = tick;
+        if n == 0 { i -= 1; buf[i] = b'0'; }
+        else { while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; } }
+        uart.write(b"tick "); uart.write(&buf[i..]); uart.write(b"\r\n");
         tick = tick.wrapping_add(1);
-
-        // Busy-wait between lines (~arbitrary at QEMU speed).
-        for _ in 0..5_000_000 {
-            core::hint::spin_loop();
-        }
+        for _ in 0..5_000_000 { core::hint::spin_loop(); }
     }
 }
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {
-        core::hint::spin_loop();
-    }
-}
+fn panic(_info: &core::panic::PanicInfo) -> ! { loop { core::hint::spin_loop(); } }
