@@ -21,7 +21,9 @@ fn main() -> ! {
         },
     );
     uart.write(b"\r\n[tailcall] Hello from WS63 UART0 (declarative style)!\r\n");
-    loop {}
+    loop {
+        core::hint::spin_loop();
+    }
 }
 
 #[panic_handler]
@@ -42,5 +44,7 @@ fn panic(_info: &PanicInfo) -> ! {
     for _ in 0..10_000_000 {
         core::hint::spin_loop();
     }
-    loop {}
+    loop {
+        core::hint::spin_loop();
+    }
 }
