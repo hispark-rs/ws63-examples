@@ -1,17 +1,17 @@
 [package]
-name = "uart_hello"
+name = "uart_stepbystep"
 version = "0.1.0"
 edition = "2024"
-description = "WS63 UART hello-world example (prints over UART0)"
+description = "WS63 UART hello — step-by-step multi-peripheral style"
 license = "MIT"
 
 [[bin]]
-name = "uart_hello"
+name = "uart_stepbystep"
 path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../../crates/pac/ws63-pac" }
 hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
-hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", default-features = false, features = ["panic-uart0"] }
+hisi-panic-handler = { version = "0.1", default-features = false, features = ["panic-uart0"] }
 riscv = "0.13"

@@ -1,6 +1,6 @@
 //! Build script for the wifi_blob_link phase-3 spike.
 //!
-//! Besides the usual hisi-riscv-rt linker-script opt-in (`-Tws63-link.x`), this links
+//! Besides the usual hisi-riscv-rt linker-script opt-in (`-Thisi-riscv-link.x`), this links
 //! the vendor Wi-Fi ROM data archive and supplies the one linker symbol it
 //! references:
 //!
@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 
 fn main() {
-    println!("cargo:rustc-link-arg=-Tws63-link.x");
+    println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     let lib_dir = PathBuf::from(&manifest).join("../../../chips/ws63/rf/ws63-RF/lib");

@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 fn main() {
-    println!("cargo:rustc-link-arg=-Tws63-link.x");
+    println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     let lib_dir = PathBuf::from(&manifest).join("../../../chips/ws63/rf/ws63-RF/lib");
