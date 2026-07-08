@@ -38,12 +38,26 @@ fn main() -> ! {
 
     let mut tick: u32 = 0;
     loop {
-        let mut buf = [0u8; 10]; let mut i = buf.len(); let mut n = tick;
-        if n == 0 { i -= 1; buf[i] = b'0'; }
-        else { while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; } }
-        uart.write(b"tick "); uart.write(&buf[i..]); uart.write(b"\r\n");
+        let mut buf = [0u8; 10];
+        let mut i = buf.len();
+        let mut n = tick;
+        if n == 0 {
+            i -= 1;
+            buf[i] = b'0';
+        } else {
+            while n > 0 {
+                i -= 1;
+                buf[i] = b'0' + (n % 10) as u8;
+                n /= 10;
+            }
+        }
+        uart.write(b"tick ");
+        uart.write(&buf[i..]);
+        uart.write(b"\r\n");
         tick = tick.wrapping_add(1);
-        for _ in 0..5_000_000 { core::hint::spin_loop(); }
+        for _ in 0..5_000_000 {
+            core::hint::spin_loop();
+        }
     }
 }
 
