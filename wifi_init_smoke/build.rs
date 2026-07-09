@@ -13,13 +13,16 @@ fn main() {
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let rf = manifest.join("../../../chips/ws63/rf/ws63-RF");
     let rf = rf.canonicalize().unwrap_or(rf);
-    let lib_dir = rf.join("lib");
+    let lib_dir = std::env::var_os("WS63_RF_LIB_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| rf.join("lib"));
     let rom = rf.join("rom/ws63_acore_rom.lds");
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
     if std::env::var_os("CARGO_FEATURE_FULL_INIT").is_some() {
         println!("cargo:rustc-link-arg=-T{}", rom.display());
+        println!("cargo:rustc-link-arg=--start-group");
         for lib in [
             "wifi_driver_hmac",
             "wifi_driver_dmac",
@@ -32,8 +35,12 @@ fn main() {
             "wifi_alg_txbf",
             "wifi_rom_data",
         ] {
-            println!("cargo:rustc-link-lib=static={lib}");
+            println!(
+                "cargo:rustc-link-arg={}",
+                lib_dir.join(format!("lib{lib}.a")).display()
+            );
         }
+        println!("cargo:rustc-link-arg=--end-group");
     }
 
     println!("cargo:rerun-if-changed=build.rs");

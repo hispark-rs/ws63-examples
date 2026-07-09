@@ -12,7 +12,7 @@
 
 use hisi_panic_handler as _;
 use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_rt::entry;
 
 type Errcode = u32;
@@ -40,7 +40,13 @@ fn hex8(n: u32) -> [u8; 8] {
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
-    let uart = Uart::new_uart0(p.UART0, Config::default());
+    let uart = Uart::new_uart0(
+        p.UART0,
+        Config {
+            clock: UartClock::Boot,
+            ..Config::default()
+        },
+    );
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
     uart.write(b"RF2_INIT_BEGIN\r\n");
@@ -61,6 +67,7 @@ fn main() -> ! {
 
 #[cfg(feature = "full-init")]
 fn call_vendor_init(_uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) -> Errcode {
+    ws63_rf_rs::force_link_contract();
     // SAFETY: `uapi_wifi_init` is the vendor Wi-Fi init entry linked from the
     // WS63 RF blob delivery. The smoke binary has no Rust-side invariants beyond
     // providing the linker symbols, ROM table, and ws63-rf-rs porting layer.

@@ -11,6 +11,9 @@ default = []
 # `uapi_wifi_init`. This currently documents the RF3 blocker: stock rust-lld
 # reports unknown HiSilicon R_RISCV_48_LLUI relocation 58 in the vendor objects.
 full-init = []
+# Emit early RT startup UART markers (`RT0!`..`RT4!`) before the HAL UART driver
+# is constructed. This is a bring-up diagnostic, not part of the normal smoke.
+startup-trace = ["hisi-riscv-rt/startup-uart-trace"]
 
 [[bin]]
 name = "wifi_init_smoke"
