@@ -1,0 +1,23 @@
+[package]
+name = "wifi_init_smoke"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 RF smoke: link the vendor Wi-Fi init closure and call uapi_wifi_init"
+license = "MIT"
+
+[features]
+default = []
+# Pulls the full vendor Wi-Fi init closure into the final executable and calls
+# `uapi_wifi_init`. This currently documents the RF3 blocker: stock rust-lld
+# reports unknown HiSilicon R_RISCV_48_LLUI relocation 58 in the vendor objects.
+full-init = []
+
+[[bin]]
+name = "wifi_init_smoke"
+path = "src/main.rs"
+
+[dependencies]
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
+hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
+ws63-rf-rs = { path = "../../../chips/ws63/rf" }

@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **gpio_irq** — GPIO0 pin0 interrupt (IRQ 33) example with custom local IRQ >=32
 - **reset_demo** — System reset example (software_reset + reset_reason)
 - **dma_loopback** — Peripheral DMA mem<->SPI0 loopback + mem->mem, both on the primary M_DMA
-- **wifi_blob_link** — Phase-3 Wi-Fi ROM blob linking spike with `__wifi_pkt_ram_end__` defsym
+- **wifi_blob_link** — Wi-Fi ROM blob linking spike using hisi-riscv-rt's `.wifi_pkt_ram` symbols
 - **rf_port_demo** — ws63-rf-rs porting layer + blob link exercise
 - **sched_demo** — ws63-rf-rs cooperative scheduler validation (later moved to ws63-rf-rs)
 - **blinky** build.rs — Automatic hisi-riscv-rt linker script discovery (-Tws63-link.x)

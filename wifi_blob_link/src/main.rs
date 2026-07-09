@@ -12,7 +12,8 @@
 //! - 13 config globals are DEFINED by the blob; we read and check **all** of
 //!   them against the vendor-initialised values.
 //! - `__wifi_pkt_ram_begin__` (a linker symbol = the C SDK `.wifi_pkt_ram`
-//!   base, 0xA00000) is supplied via `--defsym` in build.rs.
+//!   base, 0xA00000) is supplied by hisi-riscv-rt's WS63 `.wifi_pkt_ram`
+//!   NOLOAD section.
 //! - `g_dmac_alg_main` / `g_mac_res_etc` (data the blob points at; real defs
 //!   live in the Wi-Fi driver libs) are stubbed below — enough to resolve the
 //!   relocations for a link-path proof; the Wi-Fi stack is NOT run here.
@@ -23,13 +24,12 @@
 //! into a Rust image, its `.data` relocations resolve (both data-symbol and
 //! linker-symbol kinds), and `--whole-archive` brings the whole config blob in.
 //!
-//! NOT proven here (left to ROADMAP phase 4): linking the big *code* blobs
+//! NOT proven here (left to the RF init/scan plan): linking the big *code* blobs
 //! (`libwifi_driver_dmac.a` ~629 KB with real `.text`, `libbt_host.a` ~1.1 MB)
 //! whose many symbols need the real porting layer + HCC IPC; that
 //! `g_dmac_alg_main`/`g_mac_res_etc` are satisfied by the *real* driver libs
-//! with correct ABI (here they are stubs); and a real reserved `.wifi_pkt_ram`
-//! NOLOAD region in `hisi-riscv-rt` (here `__wifi_pkt_ram_begin__` is a bare
-//! `--defsym`). The Wi-Fi stack does not run — this is a link/relocation proof.
+//! with correct ABI (here they are stubs). The Wi-Fi stack does not run — this
+//! is a link/relocation proof.
 
 #![no_std]
 #![no_main]
@@ -38,8 +38,7 @@ use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
-/// C SDK `.wifi_pkt_ram` region base (linker.lds: 0xA00000, size 0xC000),
-/// supplied to the blob as `__wifi_pkt_ram_begin__` via build.rs `--defsym`.
+/// C SDK `.wifi_pkt_ram` region base (linker.lds: 0xA00000, size 0xC000).
 const WIFI_PKT_RAM_BASE: u32 = 0x00A0_0000;
 
 // ── All 13 config globals DEFINED by libwifi_rom_data.a, with their sizes ──

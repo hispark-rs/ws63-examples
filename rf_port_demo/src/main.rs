@@ -1,8 +1,9 @@
-//! WS63 phase-4 demo: the `ws63-rf-rs` porting layer in action.
+//! WS63 RF porting demo: the `ws63-rf-rs` porting layer in action.
 //!
 //! Builds on the phase-3 blob-link spike. It links the vendor Wi-Fi ROM-data
 //! blob *through* `ws63-rf-rs` (the blob's external data symbols resolve to the
-//! crate's `globals` module, the packet-RAM symbols to build.rs `--defsym`s),
+//! crate's `globals` module, the packet-RAM symbols to hisi-riscv-rt's WS63
+//! `.wifi_pkt_ram` NOLOAD section),
 //! and then exercises the **implemented** parts of the ws63-RF porting contract
 //! and checks each works, reporting over UART0:
 //!
@@ -13,7 +14,7 @@
 //! 5. `g_buf_size` from the ROM-data blob == 40 — the blob linked via the crate.
 //!
 //! It does NOT run the Wi-Fi stack (that needs the vendor RF HAL + a scheduler;
-//! see ws63-rf-rs docs / ROADMAP phase 4). This validates the porting layer is
+//! see ws63-rf-rs docs / the RF init/scan plan). This validates the porting layer is
 //! real, and that a vendor blob links against it.
 
 #![no_std]
