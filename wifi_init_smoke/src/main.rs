@@ -382,12 +382,14 @@ fn run_ping_probe(
     const IDENTIFIER: u16 = 0x5753;
     const SEQUENCE: u16 = 1;
     const TARGET: [u8; 4] = [1, 1, 1, 1];
-    let mut request = [0_u8; 42];
+    // Ethernet (14) + IPv4 (20) + ICMP echo header (8) + payload (32).
+    let mut request = [0_u8; 74];
     request[..6].copy_from_slice(&gateway_mac);
     request[6..12].copy_from_slice(&mac);
     request[12..14].copy_from_slice(&[0x08, 0x00]);
     request[14] = 0x45;
-    request[16..18].copy_from_slice(&60_u16.to_be_bytes());
+    let ip_packet_len = (request.len() - 14) as u16;
+    request[16..18].copy_from_slice(&ip_packet_len.to_be_bytes());
     request[18..20].copy_from_slice(&1_u16.to_be_bytes());
     request[22] = 64;
     request[23] = 1;
