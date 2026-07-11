@@ -69,7 +69,7 @@ fn main() -> ! {
     ws63_rf_rs::set_log_sink(rf_log_uart0);
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart);
+    run_wifi_smoke(&uart, p.EFUSE);
 
     loop {
         core::hint::spin_loop();
@@ -143,15 +143,21 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
 }
 
 #[cfg(not(feature = "full-init"))]
-fn run_wifi_smoke(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+fn run_wifi_smoke(
+    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    _efuse: hisi_riscv_hal::peripherals::Efuse<'_>,
+) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
     uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
 }
 
 #[cfg(feature = "full-init")]
-fn run_wifi_smoke(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+fn run_wifi_smoke(
+    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    efuse: hisi_riscv_hal::peripherals::Efuse<'_>,
+) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
-    let mut wifi = match Wifi::initialize() {
+    let mut wifi = match Wifi::initialize(efuse) {
         Ok(wifi) => wifi,
         Err(error) => {
             write_wifi_error(uart, b"RF2_INIT_ERR", error);
