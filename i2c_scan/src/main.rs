@@ -10,6 +10,7 @@
 
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::i2c::{I2c, Speed};
+use hisi_riscv_hal::io_config::{IoConfigDriver, MuxFunction, UartPad};
 use hisi_riscv_hal::uart::{Config as UartConfig, Uart, UartInstance};
 use hisi_riscv_rt::entry;
 
@@ -25,6 +26,11 @@ fn main() -> ! {
     let p = Peripherals::take().unwrap();
     let uart = Uart::new_uart0(p.UART0, UartConfig::default());
     uart.write(b"\r\nWS63 I2C scan (I2C0, 100 kHz, addr 0x08..0x77)\r\n");
+
+    // The WS63 EVB routes I2C0 SCL/SDA through pads 15/16, function 2.
+    let mut io = IoConfigDriver::new(p.IO_CONFIG);
+    io.set_uart_mux(UartPad::Uart1Txd, MuxFunction::F2);
+    io.set_uart_mux(UartPad::Uart1Rxd, MuxFunction::F2);
 
     let mut i2c = I2c::new_i2c0(p.I2C0, Speed::Standard);
 
