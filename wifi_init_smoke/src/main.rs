@@ -17,15 +17,8 @@ use hisi_riscv_hal::system::{ResetReason, System};
 use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_hal::wdt::Watchdog;
 use hisi_riscv_rt::entry;
-
-type Errcode = u32;
-
 #[cfg(feature = "full-init")]
-unsafe extern "C" {
-    fn uapi_wifi_init(vap_res_num: u8, user_res_num: u8) -> Errcode;
-    static g_wifi_inited_flag: u8;
-    static g_uc_custom_cali_done_etc: u8;
-}
+use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult, Wifi};
 
 fn hex8(n: u32) -> [u8; 8] {
     let mut buf = [0u8; 8];
@@ -76,31 +69,7 @@ fn main() -> ! {
     ws63_rf_rs::set_log_sink(rf_log_uart0);
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    uart.write(b"RF2_INIT_BEGIN\r\n");
-    #[cfg(feature = "full-init")]
-    unsafe {
-        uart.write(b"RF2_MEM_BEGIN\r\n");
-        ws63_rf_rs::prepare_vendor_memory();
-        uart.write(b"RF2_MEM_OK\r\n");
-        uart.write(b"RF2_FLAGS:init=");
-        uart.write(&hex8(
-            core::ptr::read_volatile(&raw const g_wifi_inited_flag) as u32,
-        ));
-        uart.write(b",cali=");
-        uart.write(&hex8(
-            core::ptr::read_volatile(&raw const g_uc_custom_cali_done_etc) as u32,
-        ));
-        uart.write(b"\r\n");
-    }
-
-    let ret = call_vendor_init(&uart);
-    if ret == 0 {
-        uart.write(b"RF2_INIT_OK\r\n");
-    } else {
-        uart.write(b"RF2_INIT_ERR:0x");
-        uart.write(&hex8(ret));
-        uart.write(b"\r\n");
-    }
+    run_wifi_smoke(&uart);
 
     loop {
         core::hint::spin_loop();
@@ -173,20 +142,74 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
     }
 }
 
-#[cfg(feature = "full-init")]
-fn call_vendor_init(_uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) -> Errcode {
-    ws63_rf_rs::force_link_contract();
-    // SAFETY: `uapi_wifi_init` is the vendor Wi-Fi init entry linked from the
-    // WS63 RF blob delivery. Its own `dmac_main_rom_cb_base_init_before_frw_init`
-    // registers callbacks using the enum values compiled into this exact blob;
-    // the application must not duplicate those writes with header-derived IDs.
-    // The smoke binary provides the linker symbols, ROM table, and ws63-rf-rs
-    // porting layer expected by that path.
-    unsafe { uapi_wifi_init(2, 7) }
+#[cfg(not(feature = "full-init"))]
+fn run_wifi_smoke(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+    uart.write(b"RF2_INIT_BEGIN\r\n");
+    uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
 }
 
-#[cfg(not(feature = "full-init"))]
-fn call_vendor_init(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) -> Errcode {
-    uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
-    0xFFFF_FFFE
+#[cfg(feature = "full-init")]
+fn run_wifi_smoke(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+    uart.write(b"RF2_INIT_BEGIN\r\n");
+    let mut wifi = match Wifi::initialize() {
+        Ok(wifi) => wifi,
+        Err(error) => {
+            write_wifi_error(uart, b"RF2_INIT_ERR", error);
+            return;
+        }
+    };
+    uart.write(b"RF2_INIT_OK ifname=");
+    uart.write(wifi.interface_name());
+    uart.write(b"\r\n");
+
+    uart.write(b"RF3_SCAN_BEGIN\r\n");
+    let mut results = [ScanResult::empty(); MAX_SCAN_RESULTS];
+    match wifi.scan(&mut results, 15_000) {
+        Ok(count) => {
+            uart.write(b"RF3_SCAN_OK count=0x");
+            uart.write(&hex8(count as u32));
+            uart.write(b"\r\n");
+            for result in &results[..count] {
+                uart.write(b"RF3_AP ssid=");
+                uart.write(result.ssid());
+                uart.write(b" freq=0x");
+                uart.write(&hex8(result.frequency_mhz as u32));
+                uart.write(b" rssi=0x");
+                uart.write(&hex8(result.rssi_dbm as i32 as u32));
+                uart.write(b"\r\n");
+            }
+        }
+        Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
+    }
+}
+
+#[cfg(feature = "full-init")]
+fn write_wifi_error(
+    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    marker: &[u8],
+    error: WifiError,
+) {
+    uart.write(marker);
+    uart.write(b":");
+    let code = match error {
+        WifiError::AlreadyInitialized => 1,
+        WifiError::Initialize(code) => code,
+        WifiError::CreateStation(code)
+        | WifiError::RegisterEvents(code)
+        | WifiError::OpenStation(code)
+        | WifiError::StartScan(code) => code as u32,
+        WifiError::Busy => 2,
+        WifiError::ScanFailed(status) => match status {
+            ws63_rf_rs::wifi::ScanStatus::Success => 0,
+            ws63_rf_rs::wifi::ScanStatus::Failed => 1,
+            ws63_rf_rs::wifi::ScanStatus::Refused => 2,
+            ws63_rf_rs::wifi::ScanStatus::Timeout => 3,
+            ws63_rf_rs::wifi::ScanStatus::Unknown(code) => code,
+        },
+        WifiError::Timeout => 3,
+        WifiError::UnsupportedTarget => u32::MAX,
+    };
+    uart.write(b"0x");
+    uart.write(&hex8(code));
+    uart.write(b"\r\n");
 }
