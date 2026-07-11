@@ -13,6 +13,8 @@
 
 use hisi_panic_handler as _;
 use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::delay::Delay;
+use hisi_riscv_hal::rf_power::RfPower;
 use hisi_riscv_hal::system::{ResetReason, System};
 use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_hal::wdt::Watchdog;
@@ -46,7 +48,12 @@ fn main() -> ! {
         },
     );
 
-    let system = System::new(p.SYS_CTL0, p.GLB_CTL_M, p.CLDO_CRG);
+    uart.write(b"RFDBG_RF_POWER_BEGIN\r\n");
+    let mut delay = Delay::new();
+    let cldo_crg = RfPower::new(p.CMU, p.CLDO_CRG).enable(&mut delay);
+    uart.write(b"RFDBG_RF_POWER_OK\r\n");
+
+    let system = System::new(p.SYS_CTL0, p.GLB_CTL_M, cldo_crg);
     uart.write(b"RFDBG_RESET_REASON=");
     uart.write(match system.reset_reason() {
         ResetReason::PowerOn => b"power-on\r\n",
