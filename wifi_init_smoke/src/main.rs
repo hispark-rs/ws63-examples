@@ -231,6 +231,7 @@ fn write_wifi_error(
     let code = match error {
         WifiError::AlreadyInitialized => 1,
         WifiError::Initialize(code) => code,
+        WifiError::Timebase(code) => code,
         WifiError::CreateStation(code)
         | WifiError::RegisterEvents(code)
         | WifiError::OpenStation(code)

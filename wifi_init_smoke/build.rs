@@ -213,10 +213,12 @@ fn main() {
                 println!("cargo:rustc-link-arg=--no-whole-archive");
             }
         }
-        // One archive member owns the complete ordered veneer table. Forcing
-        // one known wrapper pulls that member without also pulling the
-        // unrelated platform ROM-data member from the same archive.
+        // The archive contains two independent ABI payloads. Pull the complete
+        // ordered veneer table and the original platform ROM-data initializer;
+        // hisi-riscv-rt places the latter at the fixed DTCM addresses consumed
+        // directly by mask-ROM code.
         println!("cargo:rustc-link-arg=--undefined=__wrap_log_event_wifi_print1");
+        println!("cargo:rustc-link-arg=--undefined=g_systick_clock");
         println!("cargo:rustc-link-arg={}", rom_callback_archive.display());
         println!("cargo:rustc-link-arg=--end-group");
     }
