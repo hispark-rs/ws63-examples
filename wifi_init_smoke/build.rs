@@ -62,6 +62,7 @@ fn write_rom_callback_fallbacks(source: &Path, output: &Path) {
             "invalid ROM callback name: {name:?}"
         );
         let target = match name {
+            "__ashldi3" => "__ws63_ashldi3",
             "__udivdi3" => "__ws63_udivdi3",
             "__umoddi3" => "__ws63_umoddi3",
             "memcmp" => "__ws63_rom_memcmp",

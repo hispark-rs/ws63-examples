@@ -11,7 +11,7 @@ default = []
 # `uapi_wifi_init`. The full image must be built through the guarded RF script,
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
-full-init = []
+full-init = ["ws63-rf-rs/net"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
 # perturb the RF timing it is intended to observe.

@@ -214,6 +214,20 @@ fn run_wifi_smoke(
     };
     uart.write(b"RF2_INIT_OK ifname=");
     uart.write(wifi.interface_name());
+    if let Some(diag) = ws63_rf_rs::netif::diagnostics() {
+        uart.write(b" netif=0x");
+        uart.write(&hex8(diag.address as u32));
+        uart.write(b" drv_send=0x");
+        uart.write(&hex8(diag.driver_send as u32));
+        uart.write(b" hwlen=0x");
+        uart.write(&hex8(diag.hardware_address_len as u32));
+    }
+    if let Some(mac) = ws63_rf_rs::netif::hardware_address() {
+        uart.write(b" mac=");
+        for byte in mac {
+            uart.write(&hex8(byte as u32)[6..]);
+        }
+    }
     uart.write(b"\r\n");
 
     #[cfg(feature = "rf-queue-guard")]
@@ -269,6 +283,7 @@ fn run_wifi_smoke(
                     uart.write(b"RF5B_CONNECT_OK freq=0x");
                     uart.write(&hex8(info.frequency_mhz as u32));
                     uart.write(b"\r\n");
+                    run_arp_probe(uart);
                 }
                 Err(error) => write_wifi_error(uart, b"RF5B_CONNECT_ERR", error),
             }
@@ -282,6 +297,179 @@ fn run_wifi_smoke(
         uart.write(b" count=0x");
         uart.write(&hex8(ws63_rf_rs::osal::irq_dispatch_count(irq)));
         uart.write(b"\r\n");
+    }
+}
+
+#[cfg(feature = "full-init")]
+fn run_arp_probe(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+    let Some(mac) = ws63_rf_rs::netif::hardware_address() else {
+        uart.write(b"RF5A_ARP_ERR:no-mac\r\n");
+        return;
+    };
+    uart.write(b"RF5A_DHCP_BEGIN\r\n");
+    #[cfg(feature = "rf-queue-guard")]
+    ws63_rf_rs::netif::arm_host_queue_callback_watchpoint();
+    let Some(config) = ws63_rf_rs::netif_smoltcp::dhcp_probe(mac, 10_000) else {
+        uart.write(b"RF5A_DHCP_TIMEOUT rx=0x");
+        uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+        uart.write(b" tx_failed=0x");
+        uart.write(&hex8(ws63_rf_rs::netif::tx_failed()));
+        uart.write(b"\r\n");
+        return;
+    };
+    uart.write(b"RF5A_DHCP_OK addr=");
+    write_ipv4(uart, config.address);
+    uart.write(b" prefix=0x");
+    uart.write(&hex8(config.prefix_len as u32));
+    let Some(gateway) = config.router else {
+        uart.write(b" router=none\r\n");
+        return;
+    };
+    uart.write(b" router=");
+    write_ipv4(uart, gateway);
+    uart.write(b"\r\n");
+
+    let mut request = [0_u8; 74];
+    request[..6].fill(0xff);
+    request[6..12].copy_from_slice(&mac);
+    request[12..14].copy_from_slice(&[0x08, 0x06]);
+    request[14..22].copy_from_slice(&[0x00, 0x01, 0x08, 0x00, 6, 4, 0x00, 0x01]);
+    request[22..28].copy_from_slice(&mac);
+    request[28..32].copy_from_slice(&config.address);
+    request[38..42].copy_from_slice(&gateway);
+
+    uart.write(b"RF5A_ARP_BEGIN target=");
+    write_ipv4(uart, gateway);
+    uart.write(b"\r\n");
+    if ws63_rf_rs::netif::transmit(&request).is_err() {
+        uart.write(b"RF5A_ARP_ERR:tx\r\n");
+        return;
+    }
+
+    let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
+    for _ in 0..300 {
+        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame)
+            && length >= 42
+            && frame[12..14] == [0x08, 0x06]
+            && frame[20..22] == [0x00, 0x02]
+            && frame[28..32] == gateway
+        {
+            uart.write(b"RF5A_ARP_OK rx=0x");
+            uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+            uart.write(b"\r\n");
+            let mut gateway_mac = [0_u8; 6];
+            gateway_mac.copy_from_slice(&frame[6..12]);
+            run_ping_probe(uart, mac, config.address, gateway, gateway_mac);
+            return;
+        }
+        ws63_rf_rs::osal::osal_msleep(10);
+    }
+    uart.write(b"RF5A_ARP_TIMEOUT rx=0x");
+    uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+    uart.write(b" tx_failed=0x");
+    uart.write(&hex8(ws63_rf_rs::netif::tx_failed()));
+    uart.write(b"\r\n");
+}
+
+#[cfg(feature = "full-init")]
+fn run_ping_probe(
+    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    mac: [u8; 6],
+    address: [u8; 4],
+    gateway: [u8; 4],
+    gateway_mac: [u8; 6],
+) {
+    const IDENTIFIER: u16 = 0x5753;
+    const SEQUENCE: u16 = 1;
+    const TARGET: [u8; 4] = [1, 1, 1, 1];
+    let mut request = [0_u8; 42];
+    request[..6].copy_from_slice(&gateway_mac);
+    request[6..12].copy_from_slice(&mac);
+    request[12..14].copy_from_slice(&[0x08, 0x00]);
+    request[14] = 0x45;
+    request[16..18].copy_from_slice(&60_u16.to_be_bytes());
+    request[18..20].copy_from_slice(&1_u16.to_be_bytes());
+    request[22] = 64;
+    request[23] = 1;
+    request[26..30].copy_from_slice(&address);
+    request[30..34].copy_from_slice(&TARGET);
+    let ip_checksum = internet_checksum(&request[14..34]);
+    request[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
+    request[34] = 8;
+    request[38..40].copy_from_slice(&IDENTIFIER.to_be_bytes());
+    request[40..42].copy_from_slice(&SEQUENCE.to_be_bytes());
+    for (index, byte) in request[42..].iter_mut().enumerate() {
+        *byte = index as u8;
+    }
+    let icmp_checksum = internet_checksum(&request[34..]);
+    request[36..38].copy_from_slice(&icmp_checksum.to_be_bytes());
+
+    uart.write(b"RF5C_PING_BEGIN target=");
+    write_ipv4(uart, TARGET);
+    uart.write(b" via=");
+    write_ipv4(uart, gateway);
+    uart.write(b"\r\n");
+    if ws63_rf_rs::netif::transmit(&request).is_err() {
+        uart.write(b"RF5C_PING_ERR:tx\r\n");
+        return;
+    }
+
+    let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
+    for _ in 0..300 {
+        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame)
+            && length >= 42
+            && frame[12..14] == [0x08, 0x00]
+            && frame[23] == 1
+            && frame[26..30] == TARGET
+            && frame[30..34] == address
+            && frame[34] == 0
+            && frame[38..40] == IDENTIFIER.to_be_bytes()
+            && frame[40..42] == SEQUENCE.to_be_bytes()
+        {
+            uart.write(b"RF5C_PING_OK rx=0x");
+            uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+            uart.write(b"\r\n");
+            return;
+        }
+        ws63_rf_rs::osal::osal_msleep(10);
+    }
+    uart.write(b"RF5C_PING_TIMEOUT rx=0x");
+    uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+    uart.write(b"\r\n");
+}
+
+#[cfg(feature = "full-init")]
+fn internet_checksum(bytes: &[u8]) -> u16 {
+    let mut sum = 0_u32;
+    let mut chunks = bytes.chunks_exact(2);
+    for chunk in &mut chunks {
+        sum += u16::from_be_bytes([chunk[0], chunk[1]]) as u32;
+    }
+    if let Some(&last) = chunks.remainder().first() {
+        sum += (last as u32) << 8;
+    }
+    while sum > u16::MAX as u32 {
+        sum = (sum & u16::MAX as u32) + (sum >> 16);
+    }
+    !(sum as u16)
+}
+
+#[cfg(feature = "full-init")]
+fn write_ipv4(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, address: [u8; 4]) {
+    for (index, byte) in address.into_iter().enumerate() {
+        if index != 0 {
+            uart.write(b".");
+        }
+        let hundreds = byte / 100;
+        let tens = (byte / 10) % 10;
+        let ones = byte % 10;
+        if hundreds != 0 {
+            uart.write(&[b'0' + hundreds, b'0' + tens, b'0' + ones]);
+        } else if tens != 0 {
+            uart.write(&[b'0' + tens, b'0' + ones]);
+        } else {
+            uart.write(&[b'0' + ones]);
+        }
     }
 }
 
