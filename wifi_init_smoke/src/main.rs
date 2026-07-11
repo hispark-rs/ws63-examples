@@ -20,7 +20,10 @@ use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_hal::wdt::Watchdog;
 use hisi_riscv_rt::entry;
 #[cfg(feature = "full-init")]
-use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult, Wifi};
+use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, OpenNetwork, ScanResult, Wifi};
+
+#[cfg(feature = "full-init")]
+const TEST_OPEN_SSID: &[u8] = b"HUAWEI-HLJ_Guest";
 
 #[cfg(feature = "rf-watchpoint-gate")]
 #[unsafe(no_mangle)]
@@ -242,6 +245,33 @@ fn run_wifi_smoke(
                 uart.write(&hex8(result.rssi_dbm as i32 as u32));
                 uart.write(b"\r\n");
             }
+            let Some(result) = results[..count]
+                .iter()
+                .find(|result| result.ssid() == TEST_OPEN_SSID)
+            else {
+                uart.write(b"RF5B_AP_NOT_FOUND ssid=");
+                uart.write(TEST_OPEN_SSID);
+                uart.write(b"\r\n");
+                return;
+            };
+            let network = match OpenNetwork::from_scan(result) {
+                Ok(network) => network,
+                Err(error) => {
+                    write_wifi_error(uart, b"RF5B_CONFIG_ERR", error);
+                    return;
+                }
+            };
+            uart.write(b"RF5B_CONNECT_BEGIN ssid=");
+            uart.write(network.ssid());
+            uart.write(b"\r\n");
+            match wifi.connect_open(&network, 15_000) {
+                Ok(info) => {
+                    uart.write(b"RF5B_CONNECT_OK freq=0x");
+                    uart.write(&hex8(info.frequency_mhz as u32));
+                    uart.write(b"\r\n");
+                }
+                Err(error) => write_wifi_error(uart, b"RF5B_CONNECT_ERR", error),
+            }
         }
         Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
     }
@@ -272,6 +302,8 @@ fn write_wifi_error(
         | WifiError::OpenStation(code)
         | WifiError::StartScan(code) => code as u32,
         WifiError::Busy => 2,
+        WifiError::InvalidSsid => 4,
+        WifiError::ProtectedNetwork => 5,
         WifiError::ScanFailed(status) => match status {
             ws63_rf_rs::wifi::ScanStatus::Success => 0,
             ws63_rf_rs::wifi::ScanStatus::Failed => 1,
@@ -279,6 +311,8 @@ fn write_wifi_error(
             ws63_rf_rs::wifi::ScanStatus::Timeout => 3,
             ws63_rf_rs::wifi::ScanStatus::Unknown(code) => code,
         },
+        WifiError::StartConnect(code) => code as u32,
+        WifiError::ConnectFailed(status) | WifiError::Disconnected(status) => status as u32,
         WifiError::Timeout => 3,
         WifiError::UnsupportedTarget => u32::MAX,
     };
