@@ -8,9 +8,10 @@ license = "MIT"
 [features]
 default = []
 # Pulls the full vendor Wi-Fi init closure into the final executable and calls
-# `uapi_wifi_init`. This currently documents the RF3 blocker: stock rust-lld
-# reports unknown HiSilicon R_RISCV_48_LLUI relocation 58 in the vendor objects.
-full-init = []
+# `uapi_wifi_init`. The full image must be built through the guarded RF script,
+# which lets stock rust-lld choose the layout and patches the vendor custom
+# relocations before a layout-verification relink.
+full-init = ["ws63-rf-rs/rf-init-diag"]
 # Emit early RT startup UART markers (`RT0!`..`RT4!`) before the HAL UART driver
 # is constructed. This is a bring-up diagnostic, not part of the normal smoke.
 startup-trace = ["hisi-riscv-rt/startup-uart-trace"]
@@ -20,7 +21,7 @@ name = "wifi_init_smoke"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
+hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "unstable"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 ws63-rf-rs = { path = "../../../chips/ws63/rf" }

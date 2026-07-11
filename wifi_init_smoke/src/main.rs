@@ -3,23 +3,28 @@
 //! This is the first real-silicon RF milestone binary. By default it is an RF1
 //! image smoke: it proves the runtime image, `.wifi_pkt_ram`, panic path, and
 //! RF porting crate fit together. With `--features full-init`, it pulls in the
-//! vendor Wi-Fi init closure and calls `uapi_wifi_init`; that path currently
-//! records the RF3 blocker, because stock `rust-lld` rejects HiSilicon
-//! `R_RISCV_48_LLUI` relocation type 58 in the final executable link.
+//! vendor Wi-Fi init closure and calls `uapi_wifi_init`. Build that path through
+//! `rf-build-full-init-lld-layout-patch.sh`: stock `rust-lld` owns the final
+//! layout while the guarded post-link lane resolves HiSilicon custom
+//! relocations and verifies every patched section against that layout.
 
 #![no_std]
 #![no_main]
 
 use hisi_panic_handler as _;
 use hisi_riscv_hal::Peripherals;
+use hisi_riscv_hal::system::{ResetReason, System};
 use hisi_riscv_hal::uart::{Config, Uart, UartClock};
+use hisi_riscv_hal::wdt::Watchdog;
 use hisi_riscv_rt::entry;
 
 type Errcode = u32;
 
 #[cfg(feature = "full-init")]
 unsafe extern "C" {
-    fn uapi_wifi_init() -> Errcode;
+    fn uapi_wifi_init(vap_res_num: u8, user_res_num: u8) -> Errcode;
+    static g_wifi_inited_flag: u8;
+    static g_uc_custom_cali_done_etc: u8;
 }
 
 fn hex8(n: u32) -> [u8; 8] {
@@ -48,8 +53,45 @@ fn main() -> ! {
         },
     );
 
+    let system = System::new(p.SYS_CTL0, p.GLB_CTL_M, p.CLDO_CRG);
+    uart.write(b"RFDBG_RESET_REASON=");
+    uart.write(match system.reset_reason() {
+        ResetReason::PowerOn => b"power-on\r\n",
+        ResetReason::ExternalPin => b"external-pin\r\n",
+        ResetReason::Watchdog => b"watchdog\r\n",
+        ResetReason::Software => b"software\r\n",
+        ResetReason::BrownOut => b"brown-out\r\n",
+        ResetReason::Unknown => b"unknown\r\n",
+    });
+
+    // Flashboot deliberately arms a 7-second reset watchdog and transfers
+    // control after one final kick. The vendor application reconfigures it in
+    // `hw_init`; this bare-metal smoke must take ownership before the much
+    // longer Wi-Fi initialization path starts.
+    let mut boot_watchdog = Watchdog::new(p.WDT);
+    boot_watchdog.disable();
+    uart.write(b"RFDBG_BOOT_WDT_DISABLED\r\n");
+
+    #[cfg(feature = "full-init")]
+    ws63_rf_rs::set_log_sink(rf_log_uart0);
+
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
     uart.write(b"RF2_INIT_BEGIN\r\n");
+    #[cfg(feature = "full-init")]
+    unsafe {
+        uart.write(b"RF2_MEM_BEGIN\r\n");
+        ws63_rf_rs::prepare_vendor_memory();
+        uart.write(b"RF2_MEM_OK\r\n");
+        uart.write(b"RF2_FLAGS:init=");
+        uart.write(&hex8(
+            core::ptr::read_volatile(&raw const g_wifi_inited_flag) as u32,
+        ));
+        uart.write(b",cali=");
+        uart.write(&hex8(
+            core::ptr::read_volatile(&raw const g_uc_custom_cali_done_etc) as u32,
+        ));
+        uart.write(b"\r\n");
+    }
 
     let ret = call_vendor_init(&uart);
     if ret == 0 {
@@ -66,12 +108,81 @@ fn main() -> ! {
 }
 
 #[cfg(feature = "full-init")]
+fn rf_log_uart0(bytes: &[u8]) {
+    const DATA: *mut u16 = 0x4401_0004 as *mut u16;
+    const ST: *const u16 = 0x4401_0044 as *const u16;
+    const TX_FULL: u16 = 1 << 0;
+    const TX_EMPTY: u16 = 1 << 1;
+
+    for &byte in bytes {
+        unsafe {
+            while core::ptr::read_volatile(ST) & TX_FULL != 0 {
+                core::hint::spin_loop();
+            }
+            core::ptr::write_volatile(DATA, byte as u16);
+            while core::ptr::read_volatile(ST) & TX_EMPTY == 0 {
+                core::hint::spin_loop();
+            }
+        }
+    }
+}
+
+#[cfg(all(feature = "full-init", target_arch = "riscv32"))]
+#[unsafe(no_mangle)]
+extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
+    let (mcause, mepc, mtval): (u32, u32, u32);
+    // SAFETY: the runtime invokes this handler from machine mode after saving
+    // the interrupted context; these read-only CSR accesses preserve it.
+    unsafe {
+        core::arch::asm!("csrr {value}, mcause", value = out(reg) mcause, options(nomem, nostack));
+        core::arch::asm!("csrr {value}, mepc", value = out(reg) mepc, options(nomem, nostack));
+        core::arch::asm!("csrr {value}, mtval", value = out(reg) mtval, options(nomem, nostack));
+    }
+    rf_log_uart0(b"RFDBG_EXCEPTION cause=0x");
+    rf_log_uart0(&hex8(mcause));
+    rf_log_uart0(b" epc=0x");
+    rf_log_uart0(&hex8(mepc));
+    rf_log_uart0(b" tval=0x");
+    rf_log_uart0(&hex8(mtval));
+    if !frame.is_null() {
+        // SAFETY: WS63 trap_entry passes the live 0x90-byte saved-register
+        // frame in a0. These offsets mirror startup.S save_all/restore_all.
+        let (ra, a0, a1, a2, a3) = unsafe {
+            (
+                core::ptr::read_volatile(frame.byte_add(0x8c)),
+                core::ptr::read_volatile(frame.byte_add(0x7c)),
+                core::ptr::read_volatile(frame.byte_add(0x78)),
+                core::ptr::read_volatile(frame.byte_add(0x74)),
+                core::ptr::read_volatile(frame.byte_add(0x70)),
+            )
+        };
+        rf_log_uart0(b" ra=0x");
+        rf_log_uart0(&hex8(ra));
+        rf_log_uart0(b" a0=0x");
+        rf_log_uart0(&hex8(a0));
+        rf_log_uart0(b" a1=0x");
+        rf_log_uart0(&hex8(a1));
+        rf_log_uart0(b" a2=0x");
+        rf_log_uart0(&hex8(a2));
+        rf_log_uart0(b" a3=0x");
+        rf_log_uart0(&hex8(a3));
+    }
+    rf_log_uart0(b"\r\n");
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
+#[cfg(feature = "full-init")]
 fn call_vendor_init(_uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) -> Errcode {
     ws63_rf_rs::force_link_contract();
     // SAFETY: `uapi_wifi_init` is the vendor Wi-Fi init entry linked from the
-    // WS63 RF blob delivery. The smoke binary has no Rust-side invariants beyond
-    // providing the linker symbols, ROM table, and ws63-rf-rs porting layer.
-    unsafe { uapi_wifi_init() }
+    // WS63 RF blob delivery. Its own `dmac_main_rom_cb_base_init_before_frw_init`
+    // registers callbacks using the enum values compiled into this exact blob;
+    // the application must not duplicate those writes with header-derived IDs.
+    // The smoke binary provides the linker symbols, ROM table, and ws63-rf-rs
+    // porting layer expected by that path.
+    unsafe { uapi_wifi_init(2, 7) }
 }
 
 #[cfg(not(feature = "full-init"))]
