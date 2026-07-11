@@ -167,12 +167,14 @@ fn main() {
             "cargo:rustc-link-arg=-T{}",
             rom_callback_fallbacks.display()
         );
-        for symbol in [
-            "hmac_main_init_etc",
-            "wal_main_init",
-            "wal_customize_set_config",
-        ] {
-            println!("cargo:rustc-link-arg=--wrap={symbol}");
+        if std::env::var_os("CARGO_FEATURE_RF_INIT_DIAG").is_some() {
+            for symbol in [
+                "hmac_main_init_etc",
+                "wal_main_init",
+                "wal_customize_set_config",
+            ] {
+                println!("cargo:rustc-link-arg=--wrap={symbol}");
+            }
         }
         // The algorithm entry points are weak optional hooks in alg_main.c.
         // A weak undefined reference does not extract an archive member, and
@@ -186,6 +188,12 @@ fn main() {
             "alg_edca_opt_init",
             "alg_temp_protect_init",
             "alg_hmac_txbf_init",
+            // All 37 vendor Wi-Fi mask-ROM fixes live in the same archive
+            // member. Root one entry so the final ELF carries the complete,
+            // internally consistent patch object; the RF post-link step then
+            // discovers every `rom_symbol`/`rom_symbol_patch` pair.
+            "dmac_psm_process_tim_elm_patch",
+            "hh503_dispatch_trig_event_encap_patch",
         ] {
             println!("cargo:rustc-link-arg=--undefined={symbol}");
         }

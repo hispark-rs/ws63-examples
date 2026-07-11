@@ -11,7 +11,13 @@ default = []
 # `uapi_wifi_init`. The full image must be built through the guarded RF script,
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
-full-init = ["ws63-rf-rs/rf-init-diag"]
+full-init = []
+# Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
+# Keep this out of the normal scan path: synchronous UART from hot paths can
+# perturb the RF timing it is intended to observe.
+rf-init-diag = ["full-init", "ws63-rf-rs/rf-init-diag"]
+rf-watchpoint-gate = ["full-init"]
+rf-queue-guard = ["full-init", "ws63-rf-rs/rf-queue-guard"]
 # Emit early RT startup UART markers (`RT0!`..`RT4!`) before the HAL UART driver
 # is constructed. This is a bring-up diagnostic, not part of the normal smoke.
 startup-trace = ["hisi-riscv-rt/startup-uart-trace"]
@@ -22,6 +28,6 @@ path = "src/main.rs"
 
 [dependencies]
 hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "unstable"] }
-hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 ws63-rf-rs = { path = "../../../chips/ws63/rf" }

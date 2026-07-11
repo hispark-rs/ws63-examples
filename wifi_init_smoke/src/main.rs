@@ -22,6 +22,10 @@ use hisi_riscv_rt::entry;
 #[cfg(feature = "full-init")]
 use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult, Wifi};
 
+#[cfg(feature = "rf-watchpoint-gate")]
+#[unsafe(no_mangle)]
+static mut __WS63_RF_SCAN_DEBUG_GATE: u32 = 0;
+
 fn hex8(n: u32) -> [u8; 8] {
     let mut buf = [0u8; 8];
     let mut i = 0;
@@ -140,15 +144,22 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
     if !frame.is_null() {
         // SAFETY: WS63 trap_entry passes the live 0x90-byte saved-register
         // frame in a0. These offsets mirror startup.S save_all/restore_all.
-        let (ra, a0, a1, a2, a3) = unsafe {
+        let (ra, a0, a1, a2, a3, a4, a5, s0, s1, s2) = unsafe {
             (
                 core::ptr::read_volatile(frame.byte_add(0x8c)),
                 core::ptr::read_volatile(frame.byte_add(0x7c)),
                 core::ptr::read_volatile(frame.byte_add(0x78)),
                 core::ptr::read_volatile(frame.byte_add(0x74)),
                 core::ptr::read_volatile(frame.byte_add(0x70)),
+                core::ptr::read_volatile(frame.byte_add(0x6c)),
+                core::ptr::read_volatile(frame.byte_add(0x68)),
+                core::ptr::read_volatile(frame.byte_add(0x4c)),
+                core::ptr::read_volatile(frame.byte_add(0x48)),
+                core::ptr::read_volatile(frame.byte_add(0x44)),
             )
         };
+        rf_log_uart0(b" frame=0x");
+        rf_log_uart0(&hex8(frame as u32));
         rf_log_uart0(b" ra=0x");
         rf_log_uart0(&hex8(ra));
         rf_log_uart0(b" a0=0x");
@@ -159,6 +170,16 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
         rf_log_uart0(&hex8(a2));
         rf_log_uart0(b" a3=0x");
         rf_log_uart0(&hex8(a3));
+        rf_log_uart0(b" a4=0x");
+        rf_log_uart0(&hex8(a4));
+        rf_log_uart0(b" a5=0x");
+        rf_log_uart0(&hex8(a5));
+        rf_log_uart0(b" s0=0x");
+        rf_log_uart0(&hex8(s0));
+        rf_log_uart0(b" s1=0x");
+        rf_log_uart0(&hex8(s1));
+        rf_log_uart0(b" s2=0x");
+        rf_log_uart0(&hex8(s2));
     }
     rf_log_uart0(b"\r\n");
     loop {
@@ -192,6 +213,19 @@ fn run_wifi_smoke(
     uart.write(wifi.interface_name());
     uart.write(b"\r\n");
 
+    #[cfg(feature = "rf-queue-guard")]
+    ws63_rf_rs::osal::arm_frw_queue_guard();
+
+    #[cfg(feature = "rf-watchpoint-gate")]
+    {
+        uart.write(b"RFDBG_SCAN_GATE addr=0x");
+        uart.write(&hex8(core::ptr::addr_of!(__WS63_RF_SCAN_DEBUG_GATE) as u32));
+        uart.write(b"\r\n");
+        while unsafe { core::ptr::read_volatile(&raw const __WS63_RF_SCAN_DEBUG_GATE) } == 0 {
+            core::hint::spin_loop();
+        }
+    }
+
     uart.write(b"RF3_SCAN_BEGIN\r\n");
     let mut results = [ScanResult::empty(); MAX_SCAN_RESULTS];
     match wifi.scan(&mut results, 15_000) {
@@ -211,6 +245,7 @@ fn run_wifi_smoke(
         }
         Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
     }
+    #[cfg(feature = "rf-init-diag")]
     for irq in [40, 44, 45] {
         uart.write(b"RFDBG_IRQ_COUNT irq=0x");
         uart.write(&hex8(irq));
