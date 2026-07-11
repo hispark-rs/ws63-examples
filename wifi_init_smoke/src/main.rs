@@ -14,7 +14,7 @@
 use hisi_panic_handler as _;
 use hisi_riscv_hal::Peripherals;
 use hisi_riscv_hal::delay::Delay;
-use hisi_riscv_hal::rf_power::RfPower;
+use hisi_riscv_hal::rf_power::{FactoryXoTrim, RfPower};
 use hisi_riscv_hal::system::{ResetReason, System};
 use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_hal::wdt::Watchdog;
@@ -50,7 +50,24 @@ fn main() -> ! {
 
     uart.write(b"RFDBG_RF_POWER_BEGIN\r\n");
     let mut delay = Delay::new();
-    let cldo_crg = RfPower::new(p.CMU, p.CLDO_CRG).enable(&mut delay);
+    let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
+    match rf_ready.factory_xo_trim() {
+        FactoryXoTrim::Default => uart.write(b"RFDBG_XO_TRIM_DEFAULT\r\n"),
+        FactoryXoTrim::Applied {
+            group,
+            fine,
+            coarse,
+        } => {
+            uart.write(b"RFDBG_XO_TRIM group=0x");
+            uart.write(&hex8(group as u32));
+            uart.write(b" fine=0x");
+            uart.write(&hex8(fine as u32));
+            uart.write(b" coarse=0x");
+            uart.write(&hex8(coarse as u32));
+            uart.write(b"\r\n");
+        }
+    }
+    let (cldo_crg, efuse) = rf_ready.into_parts();
     uart.write(b"RFDBG_RF_POWER_OK\r\n");
 
     let system = System::new(p.SYS_CTL0, p.GLB_CTL_M, cldo_crg);
@@ -76,7 +93,7 @@ fn main() -> ! {
     ws63_rf_rs::set_log_sink(rf_log_uart0);
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart, p.EFUSE);
+    run_wifi_smoke(&uart, efuse);
 
     loop {
         core::hint::spin_loop();
@@ -193,6 +210,13 @@ fn run_wifi_smoke(
             }
         }
         Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
+    }
+    for irq in [40, 44, 45] {
+        uart.write(b"RFDBG_IRQ_COUNT irq=0x");
+        uart.write(&hex8(irq));
+        uart.write(b" count=0x");
+        uart.write(&hex8(ws63_rf_rs::osal::irq_dispatch_count(irq)));
+        uart.write(b"\r\n");
     }
 }
 

@@ -81,6 +81,7 @@ fn write_rom_callback_fallbacks(source: &Path, output: &Path) {
                     | "log_event_wifi_print2"
                     | "log_event_wifi_print3"
                     | "log_event_wifi_print4"
+                    | "osal_irq_clear"
                     | "osal_irq_disable"
                     | "osal_irq_enable"
                     | "osal_irq_free"
