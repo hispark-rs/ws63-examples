@@ -526,6 +526,7 @@ fn write_wifi_error(
         WifiError::OpenNetwork => 6,
         WifiError::UnsupportedSecurity(mode) => mode as u32,
         WifiError::InvalidPassphrase => 7,
+        WifiError::Crypto(code) => code,
         WifiError::ScanFailed(status) => match status {
             ws63_rf_rs::wifi::ScanStatus::Success => 0,
             ws63_rf_rs::wifi::ScanStatus::Failed => 1,
