@@ -12,12 +12,12 @@
 #![no_main]
 
 use hisi_panic_handler as _;
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::delay::Delay;
-use hisi_riscv_hal::rf_power::{FactoryXoTrim, RfPower};
-use hisi_riscv_hal::system::{ResetReason, System};
-use hisi_riscv_hal::uart::{Config, Uart, UartClock};
-use hisi_riscv_hal::wdt::Watchdog;
+use hisi_hal::Peripherals;
+use hisi_hal::delay::Delay;
+use hisi_hal::rf_power::{FactoryXoTrim, RfPower};
+use hisi_hal::system::{ResetReason, System};
+use hisi_hal::uart::{Config, Uart, UartClock};
+use hisi_hal::wdt::Watchdog;
 use hisi_riscv_rt::entry;
 #[cfg(feature = "full-init")]
 use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult};
@@ -201,8 +201,8 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
 
 #[cfg(not(feature = "full-init"))]
 fn run_wifi_smoke(
-    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
-    _efuse: hisi_riscv_hal::peripherals::Efuse<'_>,
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    _efuse: hisi_hal::peripherals::Efuse<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
     uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
@@ -210,8 +210,8 @@ fn run_wifi_smoke(
 
 #[cfg(feature = "full-init")]
 fn run_wifi_smoke(
-    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
-    efuse: hisi_riscv_hal::peripherals::Efuse<'_>,
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    efuse: hisi_hal::peripherals::Efuse<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let mut wifi = match ActiveWifi::initialize(efuse) {
@@ -330,7 +330,7 @@ fn run_wifi_smoke(
 }
 
 #[cfg(feature = "full-init")]
-fn run_arp_probe(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
+fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     let Some(mac) = ws63_rf_rs::netif::hardware_address() else {
         uart.write(b"RF5A_ARP_ERR:no-mac\r\n");
         return;
@@ -402,7 +402,7 @@ fn run_arp_probe(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>) {
 
 #[cfg(feature = "full-init")]
 fn run_ping_probe(
-    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     mac: [u8; 6],
     address: [u8; 4],
     gateway: [u8; 4],
@@ -486,7 +486,7 @@ fn internet_checksum(bytes: &[u8]) -> u16 {
 }
 
 #[cfg(feature = "full-init")]
-fn write_ipv4(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, address: [u8; 4]) {
+fn write_ipv4(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, address: [u8; 4]) {
     for (index, byte) in address.into_iter().enumerate() {
         if index != 0 {
             uart.write(b".");
@@ -506,7 +506,7 @@ fn write_ipv4(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, address: 
 
 #[cfg(feature = "full-init")]
 fn write_wifi_error(
-    uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>,
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
     error: WifiError,
 ) {

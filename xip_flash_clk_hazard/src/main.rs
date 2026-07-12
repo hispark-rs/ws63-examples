@@ -23,8 +23,8 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
 /// CLDO_CRG_CLK_SEL — bit 18 switches the flash/SFC controller clock to the PLL.

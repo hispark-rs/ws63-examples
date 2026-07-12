@@ -6,14 +6,14 @@
 //!
 //! `Spi::new_spi0` programs the **two-stage clock** (a CLDO_CRG divider sets the
 //! 160 MHz SSI_CLK off the 480 MHz PLL, then SCKDV divides to SCK), so the
-//! configured 1 MHz is honoured on hardware — see hisi-riscv-hal `spi.rs`.
+//! configured 1 MHz is honoured on hardware — see hisi-hal `spi.rs`.
 
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::spi::{Config as SpiConfig, DataBits, Spi, SpiHz, SpiMode};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::spi::{Config as SpiConfig, DataBits, Spi, SpiHz, SpiMode};
+use hisi_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 
 #[entry]

@@ -3,14 +3,14 @@
 //! Blinks the onboard LED (GPIO0 on most WS63 EVBs).
 //!
 //! Demonstrates the HAL's **modern GPIO path** — the [`OutputConfig`] builder +
-//! the type-erased [`Output`](hisi_riscv_hal::gpio::Output) driver — plus a simple
+//! the type-erased [`Output`](hisi_hal::gpio::Output) driver — plus a simple
 //! busy-wait delay. For an interrupt- or async-timed delay (using the corrected
 //! 24 MHz timer clock) see the `timer_irq` / `async_delay` examples.
 
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::gpio::{AnyPin, OutputConfig};
+use hisi_hal::gpio::{AnyPin, OutputConfig};
 use hisi_riscv_rt::entry;
 
 /// Approximate busy-wait delay (~240 cycles ≈ 1 µs at the 240 MHz CPU clock).

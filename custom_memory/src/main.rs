@@ -11,8 +11,8 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
 // Defined only by THIS crate's memory.x (a linker symbol whose *address* is the

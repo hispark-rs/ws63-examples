@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Migrated every example from the retired `hisi-riscv-hal` package and
+  `hisi_riscv_hal` import path to `hisi-hal 0.7.0-alpha.1` / `hisi_hal`.
 - **dma_loopback** — retargeted part 2 (mem->mem) from the secure DMA (SDMA
   @0x520A_0000) to the primary M_DMA channel 1. SDMA is never provisioned on WS63
   silicon — a transfer there stalls AXI and hangs the bus — so the example no

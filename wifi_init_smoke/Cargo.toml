@@ -29,7 +29,7 @@ name = "wifi_init_smoke"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "unstable"] }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 ws63-rf-rs = { path = "../../../chips/ws63/rf" }

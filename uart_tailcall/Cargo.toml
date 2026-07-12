@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../../crates/pac/ws63-pac" }
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
 hisi-panic-handler = { version = "0.1", default-features = false, features = ["panic-uart0"] }
 riscv = "0.13"

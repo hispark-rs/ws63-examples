@@ -34,8 +34,8 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
 /// C SDK `.wifi_pkt_ram` region base (linker.lds: 0xA00000, size 0xC000).

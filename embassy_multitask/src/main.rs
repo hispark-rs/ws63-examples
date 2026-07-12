@@ -2,22 +2,22 @@
 //!
 //! Runs `embassy-executor` (platform-riscv32, thread mode) with two async tasks
 //! that `embassy_time::Timer::after_millis(..).await` at different rates. Time
-//! comes from `hisi_riscv_hal::embassy` — the WS63 embassy-time `Driver` (now() via the
+//! comes from `hisi_hal::embassy` — the WS63 embassy-time `Driver` (now() via the
 //! TCXO 64-bit counter, alarms via a TIMER channel). This proves full embassy
 //! adaptation on the single-core, no-atomics WS63 (atomics via portable-atomic +
 //! critical-section).
 //!
 //! The HAL time-driver does not install a trap handler, so this example owns its
 //! `mtvec` and routes the alarm channel's IRQ (TIMER_INT0 = 26) to
-//! `hisi_riscv_hal::embassy::on_alarm_interrupt`.
+//! `hisi_hal::embassy::on_alarm_interrupt`.
 
 #![no_std]
 #![no_main]
 
 use embassy_executor::{Executor, Spawner};
 use embassy_time::Timer;
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::interrupt;
+use hisi_hal::Peripherals;
+use hisi_hal::interrupt;
 use hisi_riscv_rt::entry;
 use static_cell::StaticCell;
 
@@ -79,8 +79,8 @@ extern "C" fn atrap_handle() {
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
     // Compare against the HAL's chip-correct alarm IRQ (WS63 = 26, BS2X = 53) rather
     // than a hardcoded literal — the example stays correct across chips.
-    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == hisi_riscv_hal::embassy::ALARM_IRQ {
-        hisi_riscv_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
+    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == hisi_hal::embassy::ALARM_IRQ {
+        hisi_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
     }
 }
 
@@ -117,7 +117,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
     // Start the TCXO free-running counter (the embassy-time `now()` source).
-    let mut tcxo = hisi_riscv_hal::tcxo::TcxoDriver::new(p.TCXO);
+    let mut tcxo = hisi_hal::tcxo::TcxoDriver::new(p.TCXO);
     tcxo.enable();
 
     puts(b"\r\nWS63 embassy multitask (embassy-time: TCXO now() + TIMER alarm)\r\n");

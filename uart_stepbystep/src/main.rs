@@ -7,7 +7,7 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::{
+use hisi_hal::{
     peripherals::Peripherals,
     uart::{BaudRate, Config, Uart, UartClock},
 };

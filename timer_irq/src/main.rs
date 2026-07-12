@@ -2,7 +2,7 @@
 //!
 //! TIMER_0 fires periodically -> IRQ 26 (a standard `mie` bit) -> the CPU takes
 //! a machine interrupt. The interrupt *controller* (unmasking IRQ 26, the
-//! priority defaults, the global enable) is driven through `hisi_riscv_hal::interrupt`
+//! priority defaults, the global enable) is driven through `hisi_hal::interrupt`
 //! — the mie-bit tier of the WS63 model. The trap *vector* is still local to the
 //! example: it installs its OWN `mtvec` in direct mode (overriding hisi-riscv-rt's
 //! weak cross-crate trap hooks would trip rustc's no_mangle-collision check).
@@ -15,9 +15,9 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::interrupt::{self, Interrupt};
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::interrupt::{self, Interrupt};
+use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
 // TIMER_0 registers (base 0x4400_2000, TIMER0 block at +0x100).
@@ -85,7 +85,7 @@ extern "C" fn tirq_handle() {
     }
 }
 
-fn put_u32(uart: &Uart<'_, hisi_riscv_hal::peripherals::Uart0<'_>>, mut n: u32) {
+fn put_u32(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mut n: u32) {
     let mut buf = [0u8; 10];
     let s: &[u8] = if n == 0 {
         buf[0] = b'0';

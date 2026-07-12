@@ -1,6 +1,6 @@
 //! WS63 async bus demo — `embedded-hal-async` `SpiBus` + `I2c`.
 //!
-//! Drives the async SPI and I2C drivers under `hisi_riscv_hal::asynch::block_on`.
+//! Drives the async SPI and I2C drivers under `hisi_hal::asynch::block_on`.
 //! ws63-qemu loops both peripherals' FIFOs back (DR→RX for SPI, TXR→RXR for
 //! I2C), so an async `transfer_in_place` / `write_read` round-trips the data.
 //! The transfers are FIFO-paced and complete promptly (no parking needed), which
@@ -12,12 +12,12 @@
 
 // I2c async is called via UFCS below (its inherent write_read would shadow it).
 use embedded_hal_async::spi::SpiBus as _;
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::asynch::block_on;
-use hisi_riscv_hal::i2c::{I2c, Speed};
-use hisi_riscv_hal::lsadc::LsAdc;
-use hisi_riscv_hal::spi::{Config as SpiConfig, Spi};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::asynch::block_on;
+use hisi_hal::i2c::{I2c, Speed};
+use hisi_hal::lsadc::LsAdc;
+use hisi_hal::spi::{Config as SpiConfig, Spi};
+use hisi_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 
 #[entry]

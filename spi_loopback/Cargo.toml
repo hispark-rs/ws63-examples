@@ -10,6 +10,6 @@ name = "spi_loopback"
 path = "src/main.rs"
 
 [dependencies]
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63"] }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x"] }
 riscv = "0.13"

@@ -8,10 +8,10 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::i2c::{I2c, Speed};
-use hisi_riscv_hal::io_config::{IoConfigDriver, MuxFunction, UartPad};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart, UartInstance};
+use hisi_hal::Peripherals;
+use hisi_hal::i2c::{I2c, Speed};
+use hisi_hal::io_config::{IoConfigDriver, MuxFunction, UartPad};
+use hisi_hal::uart::{Config as UartConfig, Uart, UartInstance};
 use hisi_riscv_rt::entry;
 
 /// Write `byte` as two uppercase hex digits over UART0 (generic over the instance).

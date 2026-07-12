@@ -4,7 +4,7 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-use hisi_riscv_hal::{
+use hisi_hal::{
     peripherals::Peripherals,
     uart::{BaudRate, Config, Uart, UartClock},
 };

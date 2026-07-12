@@ -15,8 +15,8 @@
 use core::cell::RefCell;
 use core::ffi::c_void;
 use critical_section::Mutex;
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::uart::{Config, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 use ws63_rf_rs::alloc::{osal_kfree, osal_kmalloc};
 use ws63_rf_rs::log::{log_event_wifi_print2, memcpy_s, memset_s};

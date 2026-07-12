@@ -27,10 +27,10 @@
 #![no_std]
 #![no_main]
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::dma::{Dma0, DmaDriver};
-use hisi_riscv_hal::spi::{Config as SpiConfig, Spi};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::dma::{Dma0, DmaDriver};
+use hisi_hal::spi::{Config as SpiConfig, Spi};
+use hisi_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 
 const N: usize = 8;

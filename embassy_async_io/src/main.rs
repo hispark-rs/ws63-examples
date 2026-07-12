@@ -1,11 +1,11 @@
 //! WS63 embassy **async-I/O capstone**.
 //!
 //! Three async drivers cooperating under `embassy-executor`:
-//! * `embassy-time` `Timer` (hisi-riscv-hal embassy-time `Driver`) paces the blinker,
-//! * `embedded_hal_async::digital::Wait` (hisi-riscv-hal GPIO) awaits a real GPIO edge
+//! * `embassy-time` `Timer` (hisi-hal embassy-time `Driver`) paces the blinker,
+//! * `embedded_hal_async::digital::Wait` (hisi-hal GPIO) awaits a real GPIO edge
 //!   IRQ — demoed here because embassy gives the concurrency a single-task
 //!   `block_on` lacks (one task drives the edge, another awaits it),
-//! * `embedded_io_async::Write` (hisi-riscv-hal UART) prints the result asynchronously.
+//! * `embedded_io_async::Write` (hisi-hal UART) prints the result asynchronously.
 //!
 //! `blinker` toggles GPIO0 pin0 every 20 ms (QEMU loops output→input, raising the
 //! edge); `waiter` `wait_for_rising_edge().await`s it and async-writes a line.
@@ -19,10 +19,10 @@ use embassy_executor::{Executor, Spawner};
 use embassy_time::Timer;
 use embedded_hal_async::digital::Wait;
 use embedded_io_async::Write;
-use hisi_riscv_hal::gpio::{AnyPin, InputConfig};
-use hisi_riscv_hal::interrupt;
-use hisi_riscv_hal::peripherals::Uart0;
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_hal::gpio::{AnyPin, InputConfig};
+use hisi_hal::interrupt;
+use hisi_hal::peripherals::Uart0;
+use hisi_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 use static_cell::StaticCell;
 
@@ -59,8 +59,8 @@ extern "C" fn atrap_handle() {
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
     if (mcause & 0x8000_0000) != 0 {
         match mcause & 0xFFF {
-            26 => hisi_riscv_hal::embassy::on_alarm_interrupt(), // embassy-time alarm
-            33 => hisi_riscv_hal::gpio::on_interrupt(hisi_riscv_hal::gpio::GpioBank::Bank0), // GPIO0 edge
+            26 => hisi_hal::embassy::on_alarm_interrupt(), // embassy-time alarm
+            33 => hisi_hal::gpio::on_interrupt(hisi_hal::gpio::GpioBank::Bank0), // GPIO0 edge
             _ => {}
         }
     }
@@ -99,8 +99,8 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 #[entry]
 fn main() -> ! {
     // Start the TCXO counter (embassy-time `now()` source); banner via blocking UART.
-    let mut tcxo = hisi_riscv_hal::tcxo::TcxoDriver::new(unsafe {
-        hisi_riscv_hal::peripherals::Tcxo::steal()
+    let mut tcxo = hisi_hal::tcxo::TcxoDriver::new(unsafe {
+        hisi_hal::peripherals::Tcxo::steal()
     });
     tcxo.enable();
     let banner = Uart::new_uart0(unsafe { Uart0::steal() }, UartConfig::default());

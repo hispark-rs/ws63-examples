@@ -11,5 +11,5 @@ path = "src/main.rs"
 
 [dependencies]
 ws63-pac = { path = "../../../crates/pac/ws63-pac" }
-hisi-riscv-hal = { path = "../../../crates/hisi-riscv-hal", features = ["chip-ws63", "unstable"] }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x"] }

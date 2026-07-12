@@ -27,9 +27,9 @@
 
 use core::ptr::{read_volatile, write_volatile};
 
-use hisi_riscv_hal::Peripherals;
-use hisi_riscv_hal::interrupt::{self, Interrupt};
-use hisi_riscv_hal::uart::{Config as UartConfig, Uart};
+use hisi_hal::Peripherals;
+use hisi_hal::interrupt::{self, Interrupt};
+use hisi_hal::uart::{Config as UartConfig, Uart};
 use hisi_riscv_rt::entry;
 use smoltcp::iface::{Config, Interface, SocketSet, SocketStorage};
 use smoltcp::phy::Device;
@@ -192,7 +192,7 @@ extern "C" fn nmac_handle() {
 }
 
 // ── tiny UART formatting helpers ─────────────────────────────────────────────
-type Uart0<'a> = Uart<'a, hisi_riscv_hal::peripherals::Uart0<'a>>;
+type Uart0<'a> = Uart<'a, hisi_hal::peripherals::Uart0<'a>>;
 
 fn put_u32(uart: &Uart0<'_>, mut n: u32) {
     let mut buf = [0u8; 10];
