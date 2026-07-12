@@ -2,7 +2,7 @@
 name = "rf_port_demo"
 version = "0.1.0"
 edition = "2024"
-description = "WS63 RF porting demo: exercises ws63-rf-rs + links the vendor Wi-Fi ROM blob through it"
+description = "WS63 RF porting demo: exercises allocator, securec, and logging shims"
 license = "MIT"
 
 [[bin]]
