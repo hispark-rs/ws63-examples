@@ -8,9 +8,9 @@
 //! and checks each works, reporting over UART0:
 //!
 //! 1. `osal_kmalloc` / `osal_kfree` — heap alloc is zero-initialised + R/W.
-//! 2. `uapi_systick_get_ms` — monotonic (advances over a busy-wait).
+//! 2. `osal_get_jiffies` — monotonic (advances over a busy-wait).
 //! 3. `memset_s` / `memcpy_s` — copy works, and an over-large copy is refused.
-//! 4. `log_event_wifi_print2` — routes through the installed log sink.
+//! 4. `log_event_wifi_print2` — packed vendor diagnostics route through the sink.
 //! 5. `g_buf_size` from the ROM-data blob == 40 — the blob linked via the crate.
 //!
 //! It does NOT run the Wi-Fi stack (that needs the vendor RF HAL + a scheduler;
@@ -28,7 +28,7 @@ use hisi_riscv_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 use ws63_rf_rs::alloc::{osal_kfree, osal_kmalloc};
 use ws63_rf_rs::log::{log_event_wifi_print2, memcpy_s, memset_s};
-use ws63_rf_rs::uapi::uapi_systick_get_ms;
+use ws63_rf_rs::osal_ext::osal_get_jiffies;
 
 // A ROM-data global from libwifi_rom_data.a (blob init value 40), proving the
 // blob is whole-archive linked through ws63-rf-rs.
@@ -98,14 +98,14 @@ fn main() -> ! {
         osal_kfree(mem);
     }
 
-    // 2. uapi_systick_get_ms monotonic across a busy-wait.
-    let t1 = uapi_systick_get_ms();
+    // 2. The public OSAL jiffies ABI delegates to the ROM-backed timebase.
+    let t1 = osal_get_jiffies();
     for _ in 0..300_000 {
         core::hint::spin_loop();
     }
-    let t2 = uapi_systick_get_ms();
+    let t2 = osal_get_jiffies();
     ok &= t2 >= t1;
-    uart.write(b"uapi_systick_get_ms  : t1=0x");
+    uart.write(b"osal_get_jiffies     : t1=0x");
     uart.write(&hex8(t1 as u32));
     uart.write(b" t2=0x");
     uart.write(&hex8(t2 as u32));
@@ -136,8 +136,9 @@ fn main() -> ! {
         b"memcpy_s/memset_s    : FAIL\r\n"
     });
 
-    // 4. log_event_wifi_print2 routes through the sink.
-    log_event_wifi_print2(c"blob log via ws63-rf-rs sink".as_ptr());
+    // 4. Wi-Fi logs carry a packed metadata word and integer arguments, not a
+    // C format-string pointer. The adapter renders this bounded diagnostic.
+    log_event_wifi_print2(0, 0x1111_1111, 0x2222_2222);
     let cap_len = critical_section::with(|cs| CAP.borrow_ref(cs).1);
     ok &= cap_len > 0;
     uart.write(b"log sink captured    : ");
