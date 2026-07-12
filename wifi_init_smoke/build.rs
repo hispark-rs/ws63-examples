@@ -128,8 +128,14 @@ fn main() {
     let lib_dir = std::env::var_os("WS63_RF_LIB_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| rf.join("lib"));
-    let rom = rf.join("rom/ws63_acore_rom.lds");
-    let rom_callbacks = rf.join("rom/ws63_acore_rom_callbacks.txt");
+    let rom = PathBuf::from(
+        std::env::var_os("DEP_HISI_ROM_SYS_WS63_ROM_SYMBOLS")
+            .expect("hisi-rom-sys did not export WS63 ROM symbols"),
+    );
+    let rom_callbacks = PathBuf::from(
+        std::env::var_os("DEP_HISI_ROM_SYS_WS63_ROM_CALLBACKS")
+            .expect("hisi-rom-sys did not export WS63 ROM callbacks"),
+    );
     let rom_callback_archive = rf.join("lib/librom_callback.a");
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
