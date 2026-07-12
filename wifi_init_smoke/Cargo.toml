@@ -12,6 +12,8 @@ default = []
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
 full-init = ["ws63-rf-rs/net"]
+# Run the protected-network smoke through the vendor WPA supplicant.
+wpa = ["full-init", "ws63-rf-rs/wpa"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
 # perturb the RF timing it is intended to observe.

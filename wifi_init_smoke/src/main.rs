@@ -20,10 +20,19 @@ use hisi_riscv_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_hal::wdt::Watchdog;
 use hisi_riscv_rt::entry;
 #[cfg(feature = "full-init")]
-use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, OpenNetwork, ScanResult, Wifi};
+use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult};
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
+use ws63_rf_rs::wifi::{OpenNetwork, Wifi as ActiveWifi};
+#[cfg(feature = "wpa")]
+use ws63_rf_rs::wifi::{PersonalNetwork, WpaWifi as ActiveWifi};
 
 #[cfg(feature = "full-init")]
-const TEST_OPEN_SSID: &[u8] = b"HUAWEI-HLJ_Guest";
+const TEST_SSID: &[u8] = b"HUAWEI-HLJ_Guest";
+#[cfg(feature = "wpa")]
+const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
+    Some(value) => value.as_bytes(),
+    None => b"",
+};
 
 #[cfg(feature = "rf-watchpoint-gate")]
 #[unsafe(no_mangle)]
@@ -205,7 +214,7 @@ fn run_wifi_smoke(
     efuse: hisi_riscv_hal::peripherals::Efuse<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
-    let mut wifi = match Wifi::initialize(efuse) {
+    let mut wifi = match ActiveWifi::initialize(efuse) {
         Ok(wifi) => wifi,
         Err(error) => {
             write_wifi_error(uart, b"RF2_INIT_ERR", error);
@@ -261,13 +270,14 @@ fn run_wifi_smoke(
             }
             let Some(result) = results[..count]
                 .iter()
-                .find(|result| result.ssid() == TEST_OPEN_SSID)
+                .find(|result| result.ssid() == TEST_SSID)
             else {
                 uart.write(b"RF5B_AP_NOT_FOUND ssid=");
-                uart.write(TEST_OPEN_SSID);
+                uart.write(TEST_SSID);
                 uart.write(b"\r\n");
                 return;
             };
+            #[cfg(not(feature = "wpa"))]
             let network = match OpenNetwork::from_scan(result) {
                 Ok(network) => network,
                 Err(error) => {
@@ -275,9 +285,18 @@ fn run_wifi_smoke(
                     return;
                 }
             };
+            #[cfg(feature = "wpa")]
+            let network = match PersonalNetwork::from_scan(result, TEST_PASSPHRASE) {
+                Ok(network) => network,
+                Err(error) => {
+                    write_wifi_error(uart, b"RF5B_WPA_CONFIG_ERR", error);
+                    return;
+                }
+            };
             uart.write(b"RF5B_CONNECT_BEGIN ssid=");
             uart.write(network.ssid());
             uart.write(b"\r\n");
+            #[cfg(not(feature = "wpa"))]
             match wifi.connect_open(&network, 15_000) {
                 Ok(info) => {
                     uart.write(b"RF5B_CONNECT_OK freq=0x");
@@ -286,6 +305,16 @@ fn run_wifi_smoke(
                     run_arp_probe(uart);
                 }
                 Err(error) => write_wifi_error(uart, b"RF5B_CONNECT_ERR", error),
+            }
+            #[cfg(feature = "wpa")]
+            match wifi.connect(&network, 30_000) {
+                Ok(info) => {
+                    uart.write(b"RF5B_WPA_CONNECT_OK freq=0x");
+                    uart.write(&hex8(info.frequency_mhz as u32));
+                    uart.write(b"\r\n");
+                    run_arp_probe(uart);
+                }
+                Err(error) => write_wifi_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
             }
         }
         Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
@@ -494,6 +523,9 @@ fn write_wifi_error(
         WifiError::Busy => 2,
         WifiError::InvalidSsid => 4,
         WifiError::ProtectedNetwork => 5,
+        WifiError::OpenNetwork => 6,
+        WifiError::UnsupportedSecurity(mode) => mode as u32,
+        WifiError::InvalidPassphrase => 7,
         WifiError::ScanFailed(status) => match status {
             ws63_rf_rs::wifi::ScanStatus::Success => 0,
             ws63_rf_rs::wifi::ScanStatus::Failed => 1,

@@ -222,6 +222,22 @@ fn main() {
                 println!("cargo:rustc-link-arg=--no-whole-archive");
             }
         }
+        if std::env::var_os("CARGO_FEATURE_WPA").is_some() {
+            for lib in [
+                "wpa_supplicant",
+                "mbedtls_v3.6.0",
+                "mbedtls_harden",
+                "drv_security_unified",
+                "hal_security_unified",
+                "c",
+                "m",
+            ] {
+                println!(
+                    "cargo:rustc-link-arg={}",
+                    lib_dir.join(format!("lib{lib}.a")).display()
+                );
+            }
+        }
         // The archive contains two independent ABI payloads. Pull the complete
         // ordered veneer table and the original platform ROM-data initializer;
         // hisi-riscv-rt places the latter at the fixed DTCM addresses consumed
