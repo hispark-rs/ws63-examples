@@ -225,8 +225,6 @@ fn main() {
         if std::env::var_os("CARGO_FEATURE_WPA").is_some() {
             for lib in [
                 "wpa_supplicant",
-                "mbedtls_v3.6.0",
-                "mbedtls_harden",
                 "drv_security_unified",
                 "hal_security_unified",
                 "c",
