@@ -11,13 +11,13 @@
 #![no_std]
 #![no_main]
 
-use hisi_panic_handler as _;
 use hisi_hal::Peripherals;
 use hisi_hal::delay::Delay;
 use hisi_hal::rf_power::{FactoryXoTrim, RfPower};
 use hisi_hal::system::{ResetReason, System};
 use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
+use hisi_panic_handler as _;
 use hisi_riscv_rt::entry;
 #[cfg(feature = "full-init")]
 use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult};

@@ -99,9 +99,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 #[entry]
 fn main() -> ! {
     // Start the TCXO counter (embassy-time `now()` source); banner via blocking UART.
-    let mut tcxo = hisi_hal::tcxo::TcxoDriver::new(unsafe {
-        hisi_hal::peripherals::Tcxo::steal()
-    });
+    let mut tcxo = hisi_hal::tcxo::TcxoDriver::new(unsafe { hisi_hal::peripherals::Tcxo::steal() });
     tcxo.enable();
     let banner = Uart::new_uart0(unsafe { Uart0::steal() }, UartConfig::default());
     banner.write(b"\r\nWS63 embassy async-IO (GPIO Wait + async UART, timed by embassy-time)\r\n");

@@ -3,11 +3,11 @@
 #![no_std]
 #![no_main]
 
-use hisi_panic_handler as _;
 use hisi_hal::{
     peripherals::Peripherals,
     uart::{Config, Uart, UartClock},
 };
+use hisi_panic_handler as _;
 use hisi_riscv_rt::entry;
 
 #[entry]
