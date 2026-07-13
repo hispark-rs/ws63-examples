@@ -107,6 +107,16 @@ fn main() -> ! {
 
     #[cfg(feature = "full-init")]
     ws63_rf_rs::set_log_sink(rf_log_uart0);
+    #[cfg(feature = "full-init")]
+    hisi_rtos::start(
+        hisi_rtos::Config::default(),
+        hisi_rtos::Resources {
+            allocate: rtos_allocate,
+            deallocate: rtos_deallocate,
+            monotonic_ms: ws63_rf_rs::uapi::monotonic_ms,
+        },
+    )
+    .expect("start radio runtime");
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
     run_wifi_smoke(&uart, efuse);
@@ -114,6 +124,16 @@ fn main() -> ! {
     loop {
         core::hint::spin_loop();
     }
+}
+
+#[cfg(feature = "full-init")]
+unsafe fn rtos_allocate(size: usize) -> *mut u8 {
+    ws63_rf_rs::alloc::osal_kmalloc(size).cast()
+}
+
+#[cfg(feature = "full-init")]
+unsafe fn rtos_deallocate(pointer: *mut u8) {
+    ws63_rf_rs::alloc::osal_kfree(pointer.cast());
 }
 
 #[cfg(feature = "full-init")]
