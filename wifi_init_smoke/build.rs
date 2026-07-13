@@ -9,7 +9,15 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use ws63_radio_sys::{ROM_CALLBACK_ROOT_SYMBOLS, WIFI_ARCHIVES, WIFI_ROOT_SYMBOLS, WPA2_ARCHIVES};
+
+fn metadata_list(name: &str) -> Vec<String> {
+    std::env::var(name)
+        .unwrap_or_else(|_| panic!("ws63-radio-sys did not export {name}"))
+        .split(',')
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
 
 fn write_rom_fallbacks(source: &Path, output: &Path) {
     let source_text = fs::read_to_string(source).expect("read WS63 ROM symbol table");
@@ -198,24 +206,27 @@ fn main() {
         // vendor linker's explicit archive section selection.
         // The profile owns optional algorithm roots and the complete mask-ROM
         // patch archive roots; the example does not duplicate blob ABI facts.
-        for symbol in WIFI_ROOT_SYMBOLS {
+        for symbol in metadata_list("DEP_WS63_RADIO_SYS_WIFI_ROOT_SYMBOLS") {
             println!("cargo:rustc-link-arg=--undefined={symbol}");
         }
         println!("cargo:rustc-link-arg=--start-group");
-        for archive in WIFI_ARCHIVES {
-            if archive.whole_archive {
+        for archive in metadata_list("DEP_WS63_RADIO_SYS_WIFI_ARCHIVES") {
+            let (name, mode) = archive
+                .split_once(':')
+                .expect("invalid ws63-radio-sys archive metadata");
+            if mode == "whole" {
                 println!("cargo:rustc-link-arg=--whole-archive");
             }
             println!(
                 "cargo:rustc-link-arg={}",
-                lib_dir.join(format!("lib{}.a", archive.name)).display()
+                lib_dir.join(format!("lib{name}.a")).display()
             );
-            if archive.whole_archive {
+            if mode == "whole" {
                 println!("cargo:rustc-link-arg=--no-whole-archive");
             }
         }
         if std::env::var_os("CARGO_FEATURE_WPA").is_some() {
-            for lib in WPA2_ARCHIVES {
+            for lib in metadata_list("DEP_WS63_RADIO_SYS_WPA_ARCHIVES") {
                 println!(
                     "cargo:rustc-link-arg={}",
                     lib_dir.join(format!("lib{lib}.a")).display()
@@ -226,7 +237,7 @@ fn main() {
         // ordered veneer table and the original platform ROM-data initializer;
         // hisi-riscv-rt places the latter at the fixed DTCM addresses consumed
         // directly by mask-ROM code.
-        for symbol in ROM_CALLBACK_ROOT_SYMBOLS {
+        for symbol in metadata_list("DEP_WS63_RADIO_SYS_ROM_CALLBACK_ROOT_SYMBOLS") {
             println!("cargo:rustc-link-arg=--undefined={symbol}");
         }
         println!("cargo:rustc-link-arg={}", rom_callback_archive.display());
