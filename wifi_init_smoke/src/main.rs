@@ -286,6 +286,10 @@ fn run_wifi_smoke(
                 uart.write(&hex8(result.frequency_mhz as u32));
                 uart.write(b" rssi=0x");
                 uart.write(&hex8(result.rssi_dbm as i32 as u32));
+                uart.write(b" bssid=");
+                for byte in result.bssid {
+                    uart.write(&hex8(byte as u32)[6..]);
+                }
                 uart.write(b"\r\n");
             }
             let Some(result) = results[..count]
