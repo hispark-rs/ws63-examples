@@ -513,6 +513,18 @@ fn write_wifi_error(
     uart.write(marker);
     uart.write(b":");
     let code = match error {
+        WifiError::Runtime(error) => {
+            let detail = match error {
+                hisi_rf_rtos_driver::Error::NotInstalled => 1,
+                hisi_rf_rtos_driver::Error::AlreadyInstalled => 2,
+                hisi_rf_rtos_driver::Error::ResourceExhausted => 3,
+                hisi_rf_rtos_driver::Error::InvalidHandle => 4,
+                hisi_rf_rtos_driver::Error::InvalidContext => 5,
+                hisi_rf_rtos_driver::Error::TimedOut => 6,
+                hisi_rf_rtos_driver::Error::Runtime => 7,
+            };
+            0xffff_ff00 | detail
+        }
         WifiError::AlreadyInitialized => 1,
         WifiError::Initialize(code) => code,
         WifiError::Timebase(code) => code,
