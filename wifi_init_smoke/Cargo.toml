@@ -21,6 +21,8 @@ rf-vendor-log = ["full-init"]
 # Keep this out of the normal scan path: synchronous UART from hot paths can
 # perturb the RF timing it is intended to observe.
 rf-init-diag = ["full-init", "ws63-rf-rs/rf-init-diag"]
+rf-eloop-diag = ["full-init", "ws63-rf-rs/rf-eloop-diag"]
+rf-auth-scan-filter = ["rf-eloop-diag", "ws63-rf-rs/rf-auth-scan-filter"]
 rf-watchpoint-gate = ["full-init"]
 rf-queue-guard = ["full-init", "ws63-rf-rs/rf-queue-guard"]
 # Emit early RT startup UART markers (`RT0!`..`RT4!`) before the HAL UART driver

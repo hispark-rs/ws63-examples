@@ -26,7 +26,9 @@ use ws63_rf_rs::wifi::{OpenNetwork, Wifi as ActiveWifi};
 #[cfg(feature = "wpa")]
 use ws63_rf_rs::wifi::{PersonalNetwork, WpaWifi as ActiveWifi};
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
+const TEST_SSID: &[u8] = b"HUAWEI-HLJ";
+#[cfg(feature = "wpa")]
 const TEST_SSID: &[u8] = b"HUAWEI-HLJ_Guest";
 #[cfg(feature = "wpa")]
 const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
@@ -109,7 +111,10 @@ fn main() -> ! {
     ws63_rf_rs::set_log_sink(rf_log_uart0);
     #[cfg(feature = "full-init")]
     hisi_rtos::start(
-        hisi_rtos::Config::default(),
+        hisi_rtos::Config {
+            scheduling: hisi_rtos::SchedulingPolicy::Priority,
+            ..hisi_rtos::Config::default()
+        },
         hisi_rtos::Resources {
             allocate: rtos_allocate,
             deallocate: rtos_deallocate,
@@ -273,6 +278,19 @@ fn run_wifi_smoke(
     }
 
     uart.write(b"RF3_SCAN_BEGIN\r\n");
+    let mut event_baseline = [ws63_rf_rs::osal_queue::EventDiagnostic::default(); 16];
+    let event_baseline_count = ws63_rf_rs::osal_queue::event_diagnostics(&mut event_baseline);
+    for event in &event_baseline[..event_baseline_count] {
+        uart.write(b"RFDBG_EVENT_BASE event=0x");
+        uart.write(&hex8(event.event as u32));
+        uart.write(b" writes=0x");
+        uart.write(&hex8(event.writes));
+        uart.write(b" matches=0x");
+        uart.write(&hex8(event.matches));
+        uart.write(b" bits=0x");
+        uart.write(&hex8(event.bits));
+        uart.write(b"\r\n");
+    }
     let mut results = [ScanResult::empty(); MAX_SCAN_RESULTS];
     match wifi.scan(&mut results, 15_000) {
         Ok(count) => {
@@ -343,12 +361,342 @@ fn run_wifi_smoke(
         }
         Err(error) => write_wifi_error(uart, b"RF3_SCAN_ERR", error),
     }
-    #[cfg(feature = "rf-init-diag")]
     for irq in [40, 44, 45] {
         uart.write(b"RFDBG_IRQ_COUNT irq=0x");
         uart.write(&hex8(irq));
         uart.write(b" count=0x");
         uart.write(&hex8(ws63_rf_rs::osal::irq_dispatch_count(irq)));
+        uart.write(b"\r\n");
+    }
+    let diag = hisi_rtos::diagnostics();
+    uart.write(b"RFDBG_RTOS switches=0x");
+    uart.write(&hex8(diag.context_switches));
+    uart.write(b" yields=0x");
+    uart.write(&hex8(diag.yields));
+    uart.write(b" sleeps=0x");
+    uart.write(&hex8(diag.sleeps));
+    uart.write(b" sem_blocks=0x");
+    uart.write(&hex8(diag.semaphore_blocks));
+    uart.write(b" sem_wakes=0x");
+    uart.write(&hex8(diag.semaphore_wakes));
+    uart.write(b" sem_timeouts=0x");
+    uart.write(&hex8(diag.semaphore_timeouts));
+    uart.write(b" ready=0x");
+    uart.write(&hex8(diag.ready_tasks as u32));
+    uart.write(b" blocked=0x");
+    uart.write(&hex8(diag.blocked_tasks as u32));
+    uart.write(b" sleeping=0x");
+    uart.write(&hex8(diag.sleeping_tasks as u32));
+    uart.write(b"\r\n");
+    let mut waits = [ws63_rf_rs::osal_wait::WaitDiagnostic::default(); 16];
+    let wait_count = ws63_rf_rs::osal_wait::wait_diagnostics(&mut waits);
+    for wait in &waits[..wait_count] {
+        uart.write(b"RFDBG_WAIT wait=0x");
+        uart.write(&hex8(wait.wait as u32));
+        uart.write(b" sem=0x");
+        uart.write(&hex8(wait.semaphore as u32));
+        uart.write(b" pred=0x");
+        uart.write(&hex8(wait.predicate as u32));
+        uart.write(b" param=0x");
+        uart.write(&hex8(wait.parameter as u32));
+        uart.write(b" pred_now=0x");
+        uart.write(&hex8(wait.predicate_result as u32));
+        uart.write(b" blocks=0x");
+        uart.write(&hex8(wait.blocks));
+        uart.write(b" wakeups=0x");
+        uart.write(&hex8(wait.wakeups));
+        uart.write(b" ready=0x");
+        uart.write(&hex8(wait.ready_checks));
+        uart.write(b" wait_task=0x");
+        uart.write(&hex8(wait.last_wait_task as u32));
+        uart.write(b" wake_task=0x");
+        uart.write(&hex8(wait.last_wake_task as u32));
+        uart.write(b" wait_ra=0x");
+        uart.write(&hex8(wait.last_wait_caller as u32));
+        uart.write(b" wake_ra=0x");
+        uart.write(&hex8(wait.last_wake_caller as u32));
+        uart.write(b"\r\n");
+    }
+    let mut events = [ws63_rf_rs::osal_queue::EventDiagnostic::default(); 16];
+    let event_count = ws63_rf_rs::osal_queue::event_diagnostics(&mut events);
+    for event in &events[..event_count] {
+        uart.write(b"RFDBG_EVENT event=0x");
+        uart.write(&hex8(event.event as u32));
+        uart.write(b" bits=0x");
+        uart.write(&hex8(event.bits));
+        uart.write(b" reads=0x");
+        uart.write(&hex8(event.reads));
+        uart.write(b" writes=0x");
+        uart.write(&hex8(event.writes));
+        uart.write(b" matches=0x");
+        uart.write(&hex8(event.matches));
+        uart.write(b" read_mask=0x");
+        uart.write(&hex8(event.last_read_mask));
+        uart.write(b" write_mask=0x");
+        uart.write(&hex8(event.last_write_mask));
+        uart.write(b" mode=0x");
+        uart.write(&hex8(event.last_mode));
+        uart.write(b"\r\n");
+    }
+    #[cfg(feature = "rf-eloop-diag")]
+    {
+        let mut eloops = [ws63_rf_rs::eloop_diag::EloopDiagnostic::default(); 16];
+        let eloop_count = ws63_rf_rs::eloop_diag::diagnostics(&mut eloops);
+        for eloop in &eloops[..eloop_count] {
+            uart.write(b"RFDBG_ELOOP event=0x");
+            uart.write(&hex8(eloop.event as u32));
+            uart.write(b" posts=0x");
+            uart.write(&hex8(eloop.posts));
+            uart.write(b" post_fail=0x");
+            uart.write(&hex8(eloop.post_failures));
+            uart.write(b" reads=0x");
+            uart.write(&hex8(eloop.reads));
+            uart.write(b" nonempty=0x");
+            uart.write(&hex8(eloop.nonempty_reads));
+            uart.write(b" post_ra=0x");
+            uart.write(&hex8(eloop.last_post_caller as u32));
+            uart.write(b" read_ra=0x");
+            uart.write(&hex8(eloop.last_read_caller as u32));
+            uart.write(b" buffer=0x");
+            uart.write(&hex8(eloop.last_buffer as u32));
+            uart.write(b"\r\n");
+        }
+        let mut driver_events = [ws63_rf_rs::eloop_diag::DriverEventDiagnostic::default(); 32];
+        let driver_event_count = ws63_rf_rs::eloop_diag::driver_events(&mut driver_events);
+        for event in &driver_events[..driver_event_count] {
+            uart.write(b"RFDBG_DRIVER_EVENT seq=0x");
+            uart.write(&hex8(event.sequence));
+            uart.write(b" cmd=0x");
+            uart.write(&hex8(event.command));
+            uart.write(b" len=0x");
+            uart.write(&hex8(event.length));
+            uart.write(b" payload0=0x");
+            uart.write(&hex8(event.payload0));
+            uart.write(b"\r\n");
+        }
+        let event = ws63_rf_rs::eloop_diag::supplicant_event();
+        uart.write(b"RFDBG_SUPPLICANT_EVENT calls=0x");
+        uart.write(&hex8(event.calls));
+        uart.write(b" event=0x");
+        uart.write(&hex8(event.event as u32));
+        uart.write(b" ctx=0x");
+        uart.write(&hex8(event.context as u32));
+        uart.write(b" wifi_dev=0x");
+        uart.write(&hex8(event.wifi_device as u32));
+        uart.write(b" eloop=0x");
+        uart.write(&hex8(event.eloop_status as u32));
+        uart.write(b"\r\n");
+        let dispatch = ws63_rf_rs::eloop_diag::driver_dispatch();
+        uart.write(b"RFDBG_DRIVER_DISPATCH samples=0x");
+        uart.write(&hex8(dispatch.samples));
+        uart.write(b" caller=0x");
+        uart.write(&hex8(dispatch.caller as u32));
+        uart.write(b" cmd_reg=0x");
+        uart.write(&hex8(dispatch.command_register as u32));
+        uart.write(b" len_reg=0x");
+        uart.write(&hex8(dispatch.length_register as u32));
+        uart.write(b"\r\n");
+        let auth = ws63_rf_rs::eloop_diag::auth();
+        uart.write(b"RFDBG_AUTH dmac_rx=0x");
+        uart.write(&hex8(auth.dmac_rx_calls));
+        uart.write(b" dmac_auth=0x");
+        uart.write(&hex8(auth.dmac_rx_auth_frames));
+        uart.write(b" dmac_seq2=0x");
+        uart.write(&hex8(auth.dmac_rx_auth_seq2_frames));
+        uart.write(b" ingress=0x");
+        uart.write(&hex8(auth.hmac_ingress_calls));
+        uart.write(b" ingress_auth=0x");
+        uart.write(&hex8(auth.hmac_ingress_auth_frames));
+        uart.write(b" ingress_seq2=0x");
+        uart.write(&hex8(auth.hmac_ingress_auth_seq2_frames));
+        uart.write(b" tx_auth=0x");
+        uart.write(&hex8(auth.tx_auth_frames));
+        uart.write(b" tx_alg=0x");
+        uart.write(&hex8(auth.tx_algorithm as u32));
+        uart.write(b" tx_seq=0x");
+        uart.write(&hex8(auth.tx_sequence as u32));
+        uart.write(b" tx_netbuf=0x");
+        uart.write(&hex8(auth.tx_netbuf as u32));
+        uart.write(b" tx_comp=0x");
+        uart.write(&hex8(auth.tx_complete_calls));
+        uart.write(b" tx_comp_after_auth=0x");
+        uart.write(&hex8(auth.tx_complete_after_auth));
+        uart.write(b" tx_comp_skb=0x");
+        uart.write(&hex8(auth.tx_complete_skb as u32));
+        uart.write(b" tx_comp_frame=0x");
+        uart.write(&hex8(auth.tx_complete_frame as u32));
+        uart.write(b" tx_status=0x");
+        uart.write(&hex8(auth.tx_complete_status as u32));
+        uart.write(b" tx_counts=0x");
+        uart.write(&hex8(auth.tx_complete_data_counts as u32));
+        uart.write(b" auth_tx_comp=0x");
+        uart.write(&hex8(auth.auth_tx_complete_calls));
+        uart.write(b" auth_tx_status=0x");
+        uart.write(&hex8(auth.auth_tx_status as u32));
+        uart.write(b" auth_tx_counts=0x");
+        uart.write(&hex8(auth.auth_tx_data_counts as u32));
+        uart.write(b" wait_calls=0x");
+        uart.write(&hex8(auth.wait_state_calls));
+        uart.write(b" auth_frames=0x");
+        uart.write(&hex8(auth.auth_frames));
+        uart.write(b" auth_seq2=0x");
+        uart.write(&hex8(auth.auth_seq2_frames));
+        uart.write(b" alg=0x");
+        uart.write(&hex8(auth.last_algorithm as u32));
+        uart.write(b" seq=0x");
+        uart.write(&hex8(auth.last_sequence as u32));
+        uart.write(b" status=0x");
+        uart.write(&hex8(auth.last_status as u32));
+        uart.write(b" result=0x");
+        uart.write(&hex8(auth.last_handler_result));
+        uart.write(b" timeouts=0x");
+        uart.write(&hex8(auth.timeout_calls));
+        uart.write(b" first_seq2_st=0x");
+        uart.write(&hex8(auth.first_auth_seq2_systick_ms as u32));
+        uart.write(b" last_seq2_st=0x");
+        uart.write(&hex8(auth.last_auth_seq2_systick_ms as u32));
+        uart.write(b" first_seq2_tcxo=0x");
+        uart.write(&hex8(auth.first_auth_seq2_tcxo_ms as u32));
+        uart.write(b" last_seq2_tcxo=0x");
+        uart.write(&hex8(auth.last_auth_seq2_tcxo_ms as u32));
+        uart.write(b"\r\n");
+        for (name, address) in [
+            (b"RFDBG_AUTH_TX_DA=".as_slice(), auth.tx_destination),
+            (b"RFDBG_AUTH_TX_SA=".as_slice(), auth.tx_source),
+            (b"RFDBG_AUTH_TX_BSSID=".as_slice(), auth.tx_bssid),
+        ] {
+            uart.write(name);
+            for byte in address {
+                uart.write(&hex8(byte as u32)[6..]);
+            }
+            uart.write(b"\r\n");
+        }
+        uart.write(b"RFDBG_AUTH_TX_COMPLETE_WORDS=");
+        for word in auth.last_tx_complete_words {
+            uart.write(&hex8(word));
+            uart.write(b",");
+        }
+        uart.write(b"\r\n");
+        uart.write(b"RFDBG_BRIDGE_XMIT calls=0x");
+        uart.write(&hex8(auth.bridge_xmit_calls));
+        uart.write(b" result=0x");
+        uart.write(&hex8(auth.bridge_xmit_result as u32));
+        uart.write(b" skb=0x");
+        uart.write(&hex8(auth.bridge_xmit_skb as u32));
+        uart.write(b"\r\n");
+        uart.write(b"RFDBG_NETIF_RX calls=0x");
+        uart.write(&hex8(auth.netif_rx_calls));
+        uart.write(b" len=0x");
+        uart.write(&hex8(auth.netif_rx_length));
+        uart.write(b" bytes=");
+        for byte in auth.netif_rx_prefix {
+            uart.write(&hex8(byte as u32)[6..]);
+        }
+        uart.write(b"\r\n");
+        uart.write(b"RFDBG_TX_COMPLETE_FRAME=");
+        for byte in auth.tx_complete_frame_prefix {
+            uart.write(&hex8(byte as u32)[6..]);
+        }
+        uart.write(b"\r\n");
+        uart.write(b"RFDBG_AUTH_TX_FRAME len=0x");
+        uart.write(&hex8(auth.tx_frame_len as u32));
+        uart.write(b" bytes=");
+        for byte in &auth.tx_frame[..usize::min(auth.tx_frame_len as usize, auth.tx_frame.len())] {
+            uart.write(&hex8(*byte as u32)[6..]);
+        }
+        uart.write(b"\r\n");
+        uart.write(b"RFDBG_AUTH_TX_MAC_FILTER vap=0x");
+        uart.write(&hex8(auth.tx_vap_id as u32));
+        uart.write(b" combined=0x");
+        uart.write(&hex8(auth.tx_mac_filter.combined));
+        uart.write(b" station_tail=0x");
+        uart.write(&hex8(auth.tx_mac_filter.station_tail));
+        uart.write(b" bssid_tail=0x");
+        uart.write(&hex8(auth.tx_mac_filter.bssid_tail));
+        uart.write(b" rx_filter_before=0x");
+        uart.write(&hex8(auth.rx_filter_before_tx));
+        uart.write(b" rx_filter_after=0x");
+        uart.write(&hex8(auth.rx_filter_after_override));
+        uart.write(b"\r\n");
+        for (name, statistics) in [
+            (
+                b"RFDBG_AUTH_RX_STATS_TX".as_slice(),
+                auth.rx_statistics_at_tx,
+            ),
+            (
+                b"RFDBG_AUTH_RX_STATS_TIMEOUT".as_slice(),
+                auth.rx_statistics_at_timeout,
+            ),
+        ] {
+            uart.write(name);
+            uart.write(b" success=0x");
+            uart.write(&hex8(statistics.successful_mpdu));
+            uart.write(b" error=0x");
+            uart.write(&hex8(statistics.failed_mpdu));
+            uart.write(b" filtered=0x");
+            uart.write(&hex8(statistics.filtered_mpdu));
+            uart.write(b" ampdu=0x");
+            uart.write(&hex8(statistics.ampdu));
+            uart.write(b"\r\n");
+        }
+        if let Some(filter) = ws63_rf_rs::eloop_diag::mac_filter(1) {
+            uart.write(b"RFDBG_MAC_FILTER vap=1 combined=0x");
+            uart.write(&hex8(filter.combined));
+            uart.write(b" station_tail=0x");
+            uart.write(&hex8(filter.station_tail));
+            uart.write(b" bssid_tail=0x");
+            uart.write(&hex8(filter.bssid_tail));
+            uart.write(b"\r\n");
+        }
+        for index in 0..usize::min(auth.timeout_calls as usize, auth.timeout_systick_ms.len()) {
+            uart.write(b"RFDBG_AUTH_TIMEOUT index=0x");
+            uart.write(&hex8(index as u32));
+            uart.write(b" systick_ms=0x");
+            uart.write(&hex8(auth.timeout_systick_ms[index] as u32));
+            uart.write(b" tcxo_ms=0x");
+            uart.write(&hex8(auth.timeout_tcxo_ms[index] as u32));
+            uart.write(b"\r\n");
+        }
+        #[cfg(feature = "wpa")]
+        {
+            let event = ws63_rf_rs::wifi::wpa_event_diagnostics();
+            uart.write(b"RFDBG_WPA_EVENT calls=0x");
+            uart.write(&hex8(event.calls));
+            uart.write(b" last_kind=0x");
+            uart.write(&hex8(event.last_kind as u32));
+            uart.write(b" scan_events=0x");
+            uart.write(&hex8(event.scan_events));
+            uart.write(b" active=0x");
+            uart.write(&hex8(event.scan_active_on_event as u32));
+            uart.write(b" published=0x");
+            uart.write(&hex8(event.scan_done_published as u32));
+            uart.write(b" vendor_flag=0x");
+            uart.write(&hex8(event.vendor_scan_flag as u32));
+            uart.write(b" callback=0x");
+            uart.write(&hex8(event.registered_callback as u32));
+            uart.write(b"\r\n");
+        }
+    }
+    let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 16];
+    let task_count = hisi_rtos::task_diagnostics(&mut tasks);
+    for task in &tasks[..task_count] {
+        if task.state == hisi_rtos::TaskState::Free {
+            continue;
+        }
+        uart.write(b"RFDBG_TASK id=0x");
+        uart.write(&hex8(task.task as u32));
+        uart.write(b" state=0x");
+        uart.write(&hex8(task.state as u32));
+        uart.write(b" entry=0x");
+        uart.write(&hex8(task.entry as u32));
+        uart.write(b" sem=0x");
+        uart.write(&hex8(task.waiting_sem as u32));
+        uart.write(b" wake_at=0x");
+        uart.write(&hex8(task.wake_at as u32));
+        uart.write(b" priority=0x");
+        uart.write(&hex8(task.priority as u32));
+        uart.write(b" lock=0x");
+        uart.write(&hex8(task.scheduler_lock_depth as u32));
         uart.write(b"\r\n");
     }
 }
@@ -362,14 +710,40 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     uart.write(b"RF5A_DHCP_BEGIN\r\n");
     #[cfg(feature = "rf-queue-guard")]
     ws63_rf_rs::netif::arm_host_queue_callback_watchpoint();
-    let Some(config) = ws63_rf_rs::netif_smoltcp::dhcp_probe(mac, 10_000) else {
+    let dhcp_started_at = ws63_rf_rs::uapi::monotonic_ms();
+    let Some(config) = ws63_rf_rs::netif_smoltcp::dhcp_probe(mac, 30_000) else {
+        uart.write(b"RFDBG_DHCP_ELAPSED_MS=0x");
+        uart.write(&hex8(
+            ws63_rf_rs::uapi::monotonic_ms().wrapping_sub(dhcp_started_at) as u32,
+        ));
+        uart.write(b"\r\n");
         uart.write(b"RF5A_DHCP_TIMEOUT rx=0x");
         uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+        uart.write(b" tx=0x");
+        uart.write(&hex8(ws63_rf_rs::netif_smoltcp::tx_count()));
         uart.write(b" tx_failed=0x");
         uart.write(&hex8(ws63_rf_rs::netif::tx_failed()));
+        uart.write(b" rx_dropped=0x");
+        uart.write(&hex8(ws63_rf_rs::netif::rx_dropped()));
         uart.write(b"\r\n");
+        let mut prefix = [0_u8; 64];
+        let rx_len = ws63_rf_rs::netif_smoltcp::last_rx(&mut prefix);
+        write_frame_prefix(uart, b"RFDBG_DHCP_RX", rx_len, &prefix);
+        let tx_len = ws63_rf_rs::netif_smoltcp::last_tx(&mut prefix);
+        write_frame_prefix(
+            uart,
+            b"RFDBG_DHCP_TX",
+            tx_len,
+            &prefix[..tx_len.min(prefix.len())],
+        );
+        run_static_arp_diagnostic(uart, mac);
         return;
     };
+    uart.write(b"RFDBG_DHCP_ELAPSED_MS=0x");
+    uart.write(&hex8(
+        ws63_rf_rs::uapi::monotonic_ms().wrapping_sub(dhcp_started_at) as u32,
+    ));
+    uart.write(b"\r\n");
     uart.write(b"RF5A_DHCP_OK addr=");
     write_ipv4(uart, config.address);
     uart.write(b" prefix=0x");
@@ -412,7 +786,15 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
             uart.write(b"\r\n");
             let mut gateway_mac = [0_u8; 6];
             gateway_mac.copy_from_slice(&frame[6..12]);
-            run_ping_probe(uart, mac, config.address, gateway, gateway_mac);
+            run_ping_probe(uart, mac, config.address, gateway, gateway_mac, gateway);
+            run_ping_probe(
+                uart,
+                mac,
+                config.address,
+                gateway,
+                gateway_mac,
+                [1, 1, 1, 1],
+            );
             return;
         }
         ws63_rf_rs::osal::osal_msleep(10);
@@ -425,16 +807,69 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
 }
 
 #[cfg(feature = "full-init")]
+fn run_static_arp_diagnostic(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mac: [u8; 6]) {
+    const ADDRESS: [u8; 4] = [192, 168, 155, 2];
+    const GATEWAY: [u8; 4] = [192, 168, 155, 1];
+    let mut request = [0_u8; 42];
+    request[..6].fill(0xff);
+    request[6..12].copy_from_slice(&mac);
+    request[12..14].copy_from_slice(&[0x08, 0x06]);
+    request[14..22].copy_from_slice(&[0x00, 0x01, 0x08, 0x00, 0x06, 0x04, 0x00, 0x01]);
+    request[22..28].copy_from_slice(&mac);
+    request[28..32].copy_from_slice(&ADDRESS);
+    request[38..42].copy_from_slice(&GATEWAY);
+    uart.write(b"RFDBG_STATIC_ARP_BEGIN target=192.168.155.1\r\n");
+    if ws63_rf_rs::netif::transmit(&request).is_err() {
+        uart.write(b"RFDBG_STATIC_ARP_ERR:tx\r\n");
+        return;
+    }
+    let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
+    for _ in 0..200 {
+        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame) {
+            write_frame_prefix(uart, b"RFDBG_STATIC_ARP_RX", length, &frame[..length]);
+            if length >= 42
+                && frame[12..14] == [0x08, 0x06]
+                && frame[20..22] == [0x00, 0x02]
+                && frame[28..32] == GATEWAY
+                && frame[38..42] == ADDRESS
+            {
+                uart.write(b"RFDBG_STATIC_ARP_OK\r\n");
+                return;
+            }
+        }
+        ws63_rf_rs::osal::osal_msleep(10);
+    }
+    uart.write(b"RFDBG_STATIC_ARP_TIMEOUT\r\n");
+}
+
+#[cfg(feature = "full-init")]
+fn write_frame_prefix(
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    marker: &[u8],
+    full_len: usize,
+    prefix: &[u8],
+) {
+    uart.write(marker);
+    uart.write(b" len=0x");
+    uart.write(&hex8(full_len as u32));
+    uart.write(b" bytes=");
+    for byte in prefix {
+        uart.write(&hex8(*byte as u32)[6..]);
+    }
+    uart.write(b"\r\n");
+}
+
+#[cfg(feature = "full-init")]
 fn run_ping_probe(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     mac: [u8; 6],
     address: [u8; 4],
     gateway: [u8; 4],
     gateway_mac: [u8; 6],
+    target: [u8; 4],
 ) {
     const IDENTIFIER: u16 = 0x5753;
     const SEQUENCE: u16 = 1;
-    const TARGET: [u8; 4] = [1, 1, 1, 1];
     // Ethernet (14) + IPv4 (20) + ICMP echo header (8) + payload (32).
     let mut request = [0_u8; 74];
     request[..6].copy_from_slice(&gateway_mac);
@@ -447,7 +882,7 @@ fn run_ping_probe(
     request[22] = 64;
     request[23] = 1;
     request[26..30].copy_from_slice(&address);
-    request[30..34].copy_from_slice(&TARGET);
+    request[30..34].copy_from_slice(&target);
     let ip_checksum = internet_checksum(&request[14..34]);
     request[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
     request[34] = 8;
@@ -460,10 +895,11 @@ fn run_ping_probe(
     request[36..38].copy_from_slice(&icmp_checksum.to_be_bytes());
 
     uart.write(b"RF5C_PING_BEGIN target=");
-    write_ipv4(uart, TARGET);
+    write_ipv4(uart, target);
     uart.write(b" via=");
     write_ipv4(uart, gateway);
     uart.write(b"\r\n");
+    write_frame_prefix(uart, b"RFDBG_PING_TX", request.len(), &request[..64]);
     if ws63_rf_rs::netif::transmit(&request).is_err() {
         uart.write(b"RF5C_PING_ERR:tx\r\n");
         return;
@@ -471,20 +907,43 @@ fn run_ping_probe(
 
     let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
     for _ in 0..300 {
-        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame)
-            && length >= 42
-            && frame[12..14] == [0x08, 0x00]
-            && frame[23] == 1
-            && frame[26..30] == TARGET
-            && frame[30..34] == address
-            && frame[34] == 0
-            && frame[38..40] == IDENTIFIER.to_be_bytes()
-            && frame[40..42] == SEQUENCE.to_be_bytes()
-        {
-            uart.write(b"RF5C_PING_OK rx=0x");
-            uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
-            uart.write(b"\r\n");
-            return;
+        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame) {
+            write_frame_prefix(uart, b"RFDBG_PING_RX", length, &frame[..length.min(64)]);
+            if length >= 42
+                && frame[12..14] == [0x08, 0x06]
+                && frame[20..22] == [0x00, 0x01]
+                && frame[38..42] == address
+            {
+                let mut reply = [0_u8; 42];
+                reply[..6].copy_from_slice(&frame[22..28]);
+                reply[6..12].copy_from_slice(&mac);
+                reply[12..14].copy_from_slice(&[0x08, 0x06]);
+                reply[14..22].copy_from_slice(&[0x00, 0x01, 0x08, 0x00, 0x06, 0x04, 0x00, 0x02]);
+                reply[22..28].copy_from_slice(&mac);
+                reply[28..32].copy_from_slice(&address);
+                reply[32..38].copy_from_slice(&frame[22..28]);
+                reply[38..42].copy_from_slice(&frame[28..32]);
+                if ws63_rf_rs::netif::transmit(&reply).is_err() {
+                    uart.write(b"RFDBG_PING_ARP_REPLY_ERR\r\n");
+                } else {
+                    uart.write(b"RFDBG_PING_ARP_REPLY_OK\r\n");
+                }
+                continue;
+            }
+            if length >= 42
+                && frame[12..14] == [0x08, 0x00]
+                && frame[23] == 1
+                && frame[26..30] == target
+                && frame[30..34] == address
+                && frame[34] == 0
+                && frame[38..40] == IDENTIFIER.to_be_bytes()
+                && frame[40..42] == SEQUENCE.to_be_bytes()
+            {
+                uart.write(b"RF5C_PING_OK rx=0x");
+                uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+                uart.write(b"\r\n");
+                return;
+            }
         }
         ws63_rf_rs::osal::osal_msleep(10);
     }
