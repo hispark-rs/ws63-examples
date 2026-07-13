@@ -152,8 +152,14 @@ fn main() {
         std::env::var_os("DEP_WS63_RADIO_SYS_ROM_CALLBACK_ARCHIVE")
             .expect("ws63-radio-sys did not export its ROM callback archive"),
     );
+    let nvs_linker = PathBuf::from(
+        std::env::var_os("DEP_WS63_RADIO_SYS_NVS_LINKER")
+            .expect("ws63-radio-sys did not export its NVS linker contract"),
+    );
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
+    println!("cargo:rustc-link-arg=-T{}", nvs_linker.display());
+    println!("cargo:rerun-if-changed={}", nvs_linker.display());
 
     if std::env::var_os("CARGO_FEATURE_FULL_INIT").is_some() {
         let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
