@@ -3,7 +3,7 @@
 //! The north star is connectivity, whose biggest unknown is whether a Rust
 //! image can link the closed-source vendor Wi-Fi/BT `.a` blobs at all. This
 //! example proves the smallest case end to end, and proves it *completely*: it
-//! statically links `ws63-rf-rs/ws63-RF/lib/libwifi_rom_data.a` (~3 KB of Wi-Fi ROM
+//! statically links `ws63-radio-sys/ws63-RF/lib/libwifi_rom_data.a` (~3 KB of Wi-Fi ROM
 //! configuration data, `rv32imfc`/`ilp32f` — the same ABI as the `ws63`
 //! toolchain) with `--whole-archive`, so **all 13** of its config globals land
 //! in the image (a config blob must be present in full — the vendor ROM reads

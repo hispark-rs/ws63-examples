@@ -9,6 +9,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use ws63_radio_sys::{ROM_CALLBACK_ROOT_SYMBOLS, WIFI_ARCHIVES, WIFI_ROOT_SYMBOLS, WPA2_ARCHIVES};
 
 fn write_rom_fallbacks(source: &Path, output: &Path) {
     let source_text = fs::read_to_string(source).expect("read WS63 ROM symbol table");
@@ -123,11 +124,14 @@ fn main() {
     println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
     let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    let rf = manifest.join("../../../chips/ws63/rf/ws63-RF");
-    let rf = rf.canonicalize().unwrap_or(rf);
     let lib_dir = std::env::var_os("WS63_RF_LIB_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| rf.join("lib"));
+        .unwrap_or_else(|| {
+            PathBuf::from(
+                std::env::var_os("DEP_WS63_RADIO_SYS_LIB_DIR")
+                    .expect("ws63-radio-sys did not export its archive directory"),
+            )
+        });
     let rom = PathBuf::from(
         std::env::var_os("DEP_HISI_ROM_SYS_WS63_ROM_SYMBOLS")
             .expect("hisi-rom-sys did not export WS63 ROM symbols"),
@@ -136,7 +140,10 @@ fn main() {
         std::env::var_os("DEP_HISI_ROM_SYS_WS63_ROM_CALLBACKS")
             .expect("hisi-rom-sys did not export WS63 ROM callbacks"),
     );
-    let rom_callback_archive = rf.join("lib/librom_callback.a");
+    let rom_callback_archive = PathBuf::from(
+        std::env::var_os("DEP_WS63_RADIO_SYS_ROM_CALLBACK_ARCHIVE")
+            .expect("ws63-radio-sys did not export its ROM callback archive"),
+    );
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
@@ -189,53 +196,26 @@ fn main() {
         // self-call at the call site). Seed strong undefined references and
         // visit the feature archives before the driver archive, matching the
         // vendor linker's explicit archive section selection.
-        for symbol in [
-            "alg_anti_intf_init",
-            "alg_cca_opt_init",
-            "alg_edca_opt_init",
-            "alg_temp_protect_init",
-            "alg_hmac_txbf_init",
-            // All 37 vendor Wi-Fi mask-ROM fixes live in the same archive
-            // member. Root one entry so the final ELF carries the complete,
-            // internally consistent patch object; the RF post-link step then
-            // discovers every `rom_symbol`/`rom_symbol_patch` pair.
-            "dmac_psm_process_tim_elm_patch",
-            "hh503_dispatch_trig_event_encap_patch",
-        ] {
+        // The profile owns optional algorithm roots and the complete mask-ROM
+        // patch archive roots; the example does not duplicate blob ABI facts.
+        for symbol in WIFI_ROOT_SYMBOLS {
             println!("cargo:rustc-link-arg=--undefined={symbol}");
         }
         println!("cargo:rustc-link-arg=--start-group");
-        for lib in [
-            "wifi_alg_anti_interference",
-            "wifi_alg_cca_opt",
-            "wifi_alg_edca_opt",
-            "wifi_alg_temp_protect",
-            "wifi_alg_txbf",
-            "wifi_driver_hmac",
-            "wifi_driver_dmac",
-            "wifi_driver_tcm",
-            "bg_common",
-            "wifi_rom_data",
-        ] {
-            if lib == "wifi_rom_data" {
+        for archive in WIFI_ARCHIVES {
+            if archive.whole_archive {
                 println!("cargo:rustc-link-arg=--whole-archive");
             }
             println!(
                 "cargo:rustc-link-arg={}",
-                lib_dir.join(format!("lib{lib}.a")).display()
+                lib_dir.join(format!("lib{}.a", archive.name)).display()
             );
-            if lib == "wifi_rom_data" {
+            if archive.whole_archive {
                 println!("cargo:rustc-link-arg=--no-whole-archive");
             }
         }
         if std::env::var_os("CARGO_FEATURE_WPA").is_some() {
-            for lib in [
-                "wpa_supplicant",
-                "drv_security_unified",
-                "hal_security_unified",
-                "c",
-                "m",
-            ] {
+            for lib in WPA2_ARCHIVES {
                 println!(
                     "cargo:rustc-link-arg={}",
                     lib_dir.join(format!("lib{lib}.a")).display()
@@ -246,8 +226,9 @@ fn main() {
         // ordered veneer table and the original platform ROM-data initializer;
         // hisi-riscv-rt places the latter at the fixed DTCM addresses consumed
         // directly by mask-ROM code.
-        println!("cargo:rustc-link-arg=--undefined=__wrap_log_event_wifi_print1");
-        println!("cargo:rustc-link-arg=--undefined=g_systick_clock");
+        for symbol in ROM_CALLBACK_ROOT_SYMBOLS {
+            println!("cargo:rustc-link-arg=--undefined={symbol}");
+        }
         println!("cargo:rustc-link-arg={}", rom_callback_archive.display());
         println!("cargo:rustc-link-arg=--end-group");
     }

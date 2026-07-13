@@ -11,9 +11,9 @@ default = []
 # `uapi_wifi_init`. The full image must be built through the guarded RF script,
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
-full-init = ["ws63-rf-rs/net"]
+full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
 # Run the protected-network smoke through the vendor WPA supplicant.
-wpa = ["full-init", "ws63-rf-rs/wpa"]
+wpa = ["full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
 # perturb the RF timing it is intended to observe.
@@ -34,3 +34,7 @@ hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstab
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 ws63-rf-rs = { path = "../../../chips/ws63/rf" }
+ws63-radio-sys = { path = "../../../crates/ws63-radio-sys/crates/ws63-radio-sys", default-features = false }
+
+[build-dependencies]
+ws63-radio-sys = { path = "../../../crates/ws63-radio-sys/crates/ws63-radio-sys", default-features = false }

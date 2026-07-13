@@ -4,7 +4,7 @@
 //! the vendor Wi-Fi ROM data archive. The packet-RAM linker symbols it references
 //! are supplied by hisi-riscv-rt's WS63 `.wifi_pkt_ram` NOLOAD section:
 //!
-//! - `libwifi_rom_data.a` lives in the `ws63-RF` submodule (`../../ws63-rf-rs/ws63-RF/lib`).
+//! - `libwifi_rom_data.a` is supplied by the `ws63-radio-sys` blob profile.
 //!   It is `rv32imfc` / `ilp32f` (single-float), matching the `ws63` toolchain's
 //!   `riscv32imfc-unknown-none-elf` target, so the ABI lines up.
 //! - `__wifi_pkt_ram_begin__` is the base of the C SDK `.wifi_pkt_ram` region
@@ -15,8 +15,10 @@ use std::path::PathBuf;
 fn main() {
     println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
-    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let lib_dir = PathBuf::from(&manifest).join("../../../chips/ws63/rf/ws63-RF/lib");
+    let lib_dir = PathBuf::from(
+        std::env::var_os("DEP_WS63_RADIO_SYS_LIB_DIR")
+            .expect("ws63-radio-sys did not export its archive directory"),
+    );
     let lib_dir = lib_dir.canonicalize().unwrap_or(lib_dir);
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     // `+whole-archive`: pull in EVERY object/section of the config archive, not

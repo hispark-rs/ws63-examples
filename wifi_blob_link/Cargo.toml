@@ -2,7 +2,7 @@
 name = "wifi_blob_link"
 version = "0.1.0"
 edition = "2024"
-description = "WS63 phase-3 spike: statically link the vendor Wi-Fi ROM data blob (ws63-rf-rs/ws63-RF/lib/libwifi_rom_data.a) and resolve its external symbols"
+description = "WS63 phase-3 spike: statically link the vendor Wi-Fi ROM data blob selected by ws63-radio-sys"
 license = "MIT"
 
 [[bin]]
@@ -14,3 +14,4 @@ ws63-pac = { path = "../../../crates/pac/ws63-pac" }
 hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x"] }
 riscv = "0.13"
+ws63-radio-sys = { path = "../../../crates/ws63-radio-sys/crates/ws63-radio-sys" }
