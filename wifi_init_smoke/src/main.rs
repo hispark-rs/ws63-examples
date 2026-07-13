@@ -105,7 +105,7 @@ fn main() -> ! {
     boot_watchdog.disable();
     uart.write(b"RFDBG_BOOT_WDT_DISABLED\r\n");
 
-    #[cfg(feature = "full-init")]
+    #[cfg(feature = "rf-vendor-log")]
     ws63_rf_rs::set_log_sink(rf_log_uart0);
     #[cfg(feature = "full-init")]
     hisi_rtos::start(

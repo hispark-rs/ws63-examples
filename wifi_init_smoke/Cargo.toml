@@ -14,6 +14,9 @@ default = []
 full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
 # Run the protected-network smoke through the vendor WPA supplicant.
 wpa = ["full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"]
+# Forward vendor Wi-Fi diagnostics to UART0. Keep this opt-in: the vendor log
+# callbacks are synchronous, so enabling them changes scheduler and RF timing.
+rf-vendor-log = ["full-init"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
 # perturb the RF timing it is intended to observe.
