@@ -10,7 +10,7 @@ name = "uart_stepbystep"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../../crates/pac/ws63-pac" }
+ws63-pac = { path = "../../../crates/chips/ws63/ws63-pac" }
 hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
 hisi-panic-handler = { version = "0.1", default-features = false, features = ["panic-uart0"] }

@@ -10,7 +10,7 @@ name = "gpio_irq"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../../crates/pac/ws63-pac" }
+ws63-pac = { path = "../../../crates/chips/ws63/ws63-pac" }
 hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x"] }
 riscv = "0.13"

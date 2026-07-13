@@ -34,4 +34,4 @@ hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstab
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 ws63-rf-rs = { path = "../../../chips/ws63/rf" }
-ws63-radio-sys = { path = "../../../crates/ws63-radio-sys/crates/ws63-radio-sys", default-features = false }
+ws63-radio-sys = { path = "../../../crates/chips/ws63/ws63-radio-sys/crates/ws63-radio-sys", default-features = false }
