@@ -301,6 +301,7 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
         rf_log_uart0(&hex8(record.caller as u32));
     }
     rf_log_uart0(b"\r\n");
+    dump_rtos_task_metrics();
     loop {
         core::hint::spin_loop();
     }
@@ -325,7 +326,7 @@ fn run_wifi_smoke(
         Ok(wifi) => wifi,
         Err(error) => {
             write_wifi_error(uart, b"RF2_INIT_ERR", error);
-            dump_rtos_task_metrics(uart);
+            dump_rtos_task_metrics();
             return;
         }
     };
@@ -768,69 +769,69 @@ fn run_wifi_smoke(
             uart.write(b"\r\n");
         }
     }
-    dump_rtos_task_metrics(uart);
+    dump_rtos_task_metrics();
 }
 
 #[cfg(feature = "full-init")]
-fn dump_rtos_task_metrics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+fn dump_rtos_task_metrics() {
     let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 32];
     let task_count = hisi_rtos::task_diagnostics(&mut tasks);
     for task in &tasks[..task_count] {
         if task.state == hisi_rtos::TaskState::Free {
             continue;
         }
-        uart.write(b"RFDBG_TASK id=0x");
-        uart.write(&hex8(task.task as u32));
-        uart.write(b" state=0x");
-        uart.write(&hex8(task.state as u32));
-        uart.write(b" entry=0x");
-        uart.write(&hex8(task.entry as u32));
-        uart.write(b" base_priority=0x");
-        uart.write(&hex8(task.base_priority as u32));
-        uart.write(b" priority=0x");
-        uart.write(&hex8(task.priority as u32));
-        uart.write(b" sem=0x");
-        uart.write(&hex8(task.waiting_sem as u32));
-        uart.write(b" mutex=0x");
-        uart.write(&hex8(task.waiting_mutex as u32));
-        uart.write(b" wake_at=0x");
-        uart.write(&hex16(task.wake_at));
-        uart.write(b" lock=0x");
-        uart.write(&hex8(task.scheduler_lock_depth as u32));
-        uart.write(b"\r\n");
+        rf_log_uart0(b"RFDBG_TASK id=0x");
+        rf_log_uart0(&hex8(task.task as u32));
+        rf_log_uart0(b" state=0x");
+        rf_log_uart0(&hex8(task.state as u32));
+        rf_log_uart0(b" entry=0x");
+        rf_log_uart0(&hex8(task.entry as u32));
+        rf_log_uart0(b" base_priority=0x");
+        rf_log_uart0(&hex8(task.base_priority as u32));
+        rf_log_uart0(b" priority=0x");
+        rf_log_uart0(&hex8(task.priority as u32));
+        rf_log_uart0(b" sem=0x");
+        rf_log_uart0(&hex8(task.waiting_sem as u32));
+        rf_log_uart0(b" mutex=0x");
+        rf_log_uart0(&hex8(task.waiting_mutex as u32));
+        rf_log_uart0(b" wake_at=0x");
+        rf_log_uart0(&hex16(task.wake_at));
+        rf_log_uart0(b" lock=0x");
+        rf_log_uart0(&hex8(task.scheduler_lock_depth as u32));
+        rf_log_uart0(b"\r\n");
 
         let policy = match task.run_policy {
             hisi_rtos::RunPolicy::Cooperative => 0,
             hisi_rtos::RunPolicy::Budgeted(_) => 1,
             hisi_rtos::RunPolicy::Preemptive { .. } => 2,
         };
-        uart.write(b"RFDBG_TASK_METRIC id=0x");
-        uart.write(&hex8(task.task as u32));
-        uart.write(b" policy=0x");
-        uart.write(&hex8(policy));
-        uart.write(b" cpu_ms=0x");
-        uart.write(&hex16(task.cpu_time_ms));
-        uart.write(b" irq_ms=0x");
-        uart.write(&hex16(task.irq_time_ms));
-        uart.write(b" dispatches=0x");
-        uart.write(&hex8(task.dispatches));
-        uart.write(b" budget_exhaustions=0x");
-        uart.write(&hex8(task.budget_exhaustions));
-        uart.write(b" budget_remaining=0x");
-        uart.write(&hex8(task.budget_remaining));
-        uart.write(b" max_run_ms=0x");
-        uart.write(&hex16(task.max_continuous_run_ms));
-        uart.write(b" max_ready_ms=0x");
-        uart.write(&hex16(task.max_ready_latency_ms));
-        uart.write(b" lock_entries=0x");
-        uart.write(&hex8(task.scheduler_lock_entries));
-        uart.write(b" max_lock_ms=0x");
-        uart.write(&hex16(task.max_scheduler_lock_ms));
-        uart.write(b" irq_entries=0x");
-        uart.write(&hex8(task.irq_entries));
-        uart.write(b" max_irq_ms=0x");
-        uart.write(&hex16(task.max_irq_span_ms));
-        uart.write(b"\r\n");
+        rf_log_uart0(b"RFDBG_TASK_METRIC id=0x");
+        rf_log_uart0(&hex8(task.task as u32));
+        rf_log_uart0(b" policy=0x");
+        rf_log_uart0(&hex8(policy));
+        rf_log_uart0(b" cpu_ms=0x");
+        rf_log_uart0(&hex16(task.cpu_time_ms));
+        rf_log_uart0(b" irq_ms=0x");
+        rf_log_uart0(&hex16(task.irq_time_ms));
+        rf_log_uart0(b" dispatches=0x");
+        rf_log_uart0(&hex8(task.dispatches));
+        rf_log_uart0(b" budget_exhaustions=0x");
+        rf_log_uart0(&hex8(task.budget_exhaustions));
+        rf_log_uart0(b" budget_remaining=0x");
+        rf_log_uart0(&hex8(task.budget_remaining));
+        rf_log_uart0(b" max_run_ms=0x");
+        rf_log_uart0(&hex16(task.max_continuous_run_ms));
+        rf_log_uart0(b" max_ready_ms=0x");
+        rf_log_uart0(&hex16(task.max_ready_latency_ms));
+        rf_log_uart0(b" lock_entries=0x");
+        rf_log_uart0(&hex8(task.scheduler_lock_entries));
+        rf_log_uart0(b" max_lock_ms=0x");
+        rf_log_uart0(&hex16(task.max_scheduler_lock_ms));
+        rf_log_uart0(b" irq_entries=0x");
+        rf_log_uart0(&hex8(task.irq_entries));
+        rf_log_uart0(b" max_irq_ms=0x");
+        rf_log_uart0(&hex16(task.max_irq_span_ms));
+        rf_log_uart0(b"\r\n");
     }
 }
 
