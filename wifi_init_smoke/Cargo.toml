@@ -12,6 +12,10 @@ default = []
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
 full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
+# Compile the pinned upstream hostap native port against the scan-only WS63
+# driver path. This intentionally excludes the legacy WPA archives; W2 adds
+# RX/event/context gates before this becomes the default protected-network path.
+upstream-supplicant = ["full-init", "ws63-rf-rs/upstream-supplicant-port"]
 # Shared internal station path selected by the concrete WPA2 or WPA3 profile.
 personal = []
 # Run the protected-network smoke through the vendor WPA supplicant.

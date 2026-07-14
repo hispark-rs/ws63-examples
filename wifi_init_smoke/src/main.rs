@@ -1510,7 +1510,21 @@ fn write_wifi_error(
         WifiError::CreateStation(code)
         | WifiError::RegisterEvents(code)
         | WifiError::OpenStation(code)
+        | WifiError::ConfigureSecurity(code)
         | WifiError::StartScan(code) => code as u32,
+        #[cfg(feature = "upstream-supplicant")]
+        WifiError::SupplicantPort(error) => {
+            let detail = match error {
+                ws63_rf_rs::UpstreamSupplicantPortError::Runtime(_) => 1,
+                ws63_rf_rs::UpstreamSupplicantPortError::InvalidInterfaceName => 2,
+                ws63_rf_rs::UpstreamSupplicantPortError::Busy => 3,
+                ws63_rf_rs::UpstreamSupplicantPortError::Poisoned => 4,
+                ws63_rf_rs::UpstreamSupplicantPortError::InterfaceConflict => 5,
+                ws63_rf_rs::UpstreamSupplicantPortError::Abi(_) => 6,
+                ws63_rf_rs::UpstreamSupplicantPortError::Rollback { .. } => 7,
+            };
+            0xffff_fe00 | detail
+        }
         WifiError::Busy => 2,
         WifiError::InvalidSsid => 4,
         WifiError::ProtectedNetwork => 5,
