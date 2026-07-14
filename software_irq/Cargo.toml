@@ -1,0 +1,20 @@
+[package]
+name = "software_irq"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 SYS_CTL1 software-interrupt routing diagnostic"
+license = "MIT"
+
+[[bin]]
+name = "software_irq"
+path = "src/main.rs"
+
+[dependencies]
+ws63-pac = { path = "../../../crates/chips/ws63/ws63-pac" }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
+
+[workspace]
+
+[patch.crates-io]
+ws63-pac = { path = "../../../crates/chips/ws63/ws63-pac" }
