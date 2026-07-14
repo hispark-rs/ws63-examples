@@ -7,7 +7,7 @@ use hisi_rf::WifiDevice;
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
 use smoltcp::phy::{ChecksumCapabilities, Device};
 use smoltcp::socket::{dhcpv4, icmp};
-use smoltcp::time::Instant;
+use smoltcp::time::{Duration, Instant};
 use smoltcp::wire::{
     EthernetAddress, HardwareAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr, Ipv4Address,
 };
@@ -15,6 +15,7 @@ use smoltcp::wire::{
 use super::{hex8, write_ipv4};
 
 const DHCP_TIMEOUT_MS: u64 = 30_000;
+const DHCP_SMOKE_MAX_LEASE_SECS: u64 = 20;
 const POLL_INTERVAL_MS: u32 = 10;
 const PING_TIMEOUT_MS: u64 = 1_000;
 const PING_COUNT: u16 = 5;
@@ -53,7 +54,11 @@ pub(super) fn run<D: Device>(uart: &Uart0<'_>, mut device: WifiDevice<D>) -> ! {
 
     let mut socket_storage = [SocketStorage::EMPTY; 2];
     let mut sockets = SocketSet::new(&mut socket_storage[..]);
-    let dhcp_handle = sockets.add(dhcpv4::Socket::new());
+    let mut dhcp_socket = dhcpv4::Socket::new();
+    // This smoke-only cap makes renewal observable in one HIL capture without
+    // changing the library or production DHCP defaults.
+    dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(DHCP_SMOKE_MAX_LEASE_SECS)));
+    let dhcp_handle = sockets.add(dhcp_socket);
 
     let mut icmp_rx_metadata = [icmp::PacketMetadata::EMPTY; 4];
     let mut icmp_tx_metadata = [icmp::PacketMetadata::EMPTY; 4];
@@ -96,12 +101,18 @@ pub(super) fn run<D: Device>(uart: &Uart0<'_>, mut device: WifiDevice<D>) -> ! {
             &mut sockets,
             dhcp_handle,
             &mut lease,
+            ws63_rf_rs::netif_smoltcp::dhcp_diagnostics(),
         );
     };
+    let dhcp_baseline = ws63_rf_rs::netif_smoltcp::dhcp_diagnostics();
 
+    let mut neighbor_confirmed = false;
     let gateway_stats = active_lease
         .router
         .map_or_else(PingStats::default, |gateway| {
+            uart.write(b"RF5A_ARP_BEGIN target=");
+            write_ipv4(uart, gateway.octets());
+            uart.write(b" mode=smoltcp\r\n");
             ping_series(
                 uart,
                 &mut interface,
@@ -110,6 +121,7 @@ pub(super) fn run<D: Device>(uart: &Uart0<'_>, mut device: WifiDevice<D>) -> ! {
                 dhcp_handle,
                 icmp_handle,
                 &mut lease,
+                &mut neighbor_confirmed,
                 gateway,
                 PING_COUNT,
             )
@@ -122,6 +134,7 @@ pub(super) fn run<D: Device>(uart: &Uart0<'_>, mut device: WifiDevice<D>) -> ! {
         dhcp_handle,
         icmp_handle,
         &mut lease,
+        &mut neighbor_confirmed,
         PUBLIC_TARGET,
         PING_COUNT,
     );
@@ -147,6 +160,7 @@ pub(super) fn run<D: Device>(uart: &Uart0<'_>, mut device: WifiDevice<D>) -> ! {
         &mut sockets,
         dhcp_handle,
         &mut lease,
+        dhcp_baseline,
     )
 }
 
@@ -157,11 +171,25 @@ fn keep_polling<D: Device>(
     sockets: &mut SocketSet<'_>,
     dhcp_handle: SocketHandle,
     lease: &mut Option<Lease>,
+    dhcp_baseline: ws63_rf_rs::netif_smoltcp::DhcpDiagnostics,
 ) -> ! {
     let mut heartbeat_at = monotonic_ms().saturating_add(10_000);
+    let mut renew_reported = false;
     loop {
         poll_network(uart, interface, device, sockets, dhcp_handle, lease);
         let current = monotonic_ms();
+        let dhcp = ws63_rf_rs::netif_smoltcp::dhcp_diagnostics();
+        if !renew_reported
+            && dhcp.client_packets > dhcp_baseline.client_packets
+            && dhcp.server_packets > dhcp_baseline.server_packets
+        {
+            uart.write(b"A4_DHCP_RENEW_OK client=0x");
+            uart.write(&hex8(dhcp.client_packets - dhcp_baseline.client_packets));
+            uart.write(b" server=0x");
+            uart.write(&hex8(dhcp.server_packets - dhcp_baseline.server_packets));
+            uart.write(b"\r\n");
+            renew_reported = true;
+        }
         if current >= heartbeat_at {
             uart.write(b"A4_NET_RUNNER_ALIVE lease=");
             uart.write(if lease.is_some() {
@@ -243,6 +271,7 @@ fn ping_series<D: Device>(
     dhcp_handle: SocketHandle,
     icmp_handle: SocketHandle,
     lease: &mut Option<Lease>,
+    neighbor_confirmed: &mut bool,
     target: Ipv4Address,
     count: u16,
 ) -> PingStats {
@@ -309,6 +338,10 @@ fn ping_series<D: Device>(
                     && ident == ICMP_IDENTIFIER
                     && seq_no == sequence
                 {
+                    if !*neighbor_confirmed {
+                        uart.write(b"RF5A_ARP_OK mode=smoltcp-neighbor-cache\r\n");
+                        *neighbor_confirmed = true;
+                    }
                     let rtt_ms =
                         monotonic_ms().wrapping_sub(started_at).min(u32::MAX as u64) as u32;
                     stats.rx = stats.rx.saturating_add(1);
