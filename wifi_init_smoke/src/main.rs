@@ -14,7 +14,11 @@
 use hisi_hal::Peripherals;
 use hisi_hal::delay::Delay;
 use hisi_hal::rf_power::{FactoryXoTrim, RfPower};
+#[cfg(feature = "full-init")]
+use hisi_hal::software_interrupt::SoftwareInterrupt0;
 use hisi_hal::system::{ResetReason, System};
+#[cfg(feature = "full-init")]
+use hisi_hal::timer::TimerAlarm0;
 use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
@@ -110,15 +114,26 @@ fn main() -> ! {
     #[cfg(feature = "rf-vendor-log")]
     ws63_rf_rs::set_log_sink(rf_log_uart0);
     #[cfg(feature = "full-init")]
-    hisi_rtos::start(
+    let _timer_alarm = TimerAlarm0::new(p.TIMER);
+    #[cfg(feature = "full-init")]
+    let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
+    #[cfg(feature = "full-init")]
+    hisi_rtos::start_with_port(
         hisi_rtos::Config {
             scheduling: hisi_rtos::SchedulingPolicy::Priority,
+            time_slice: core::num::NonZeroU32::new(10),
             ..hisi_rtos::Config::default()
         },
         hisi_rtos::Resources {
             allocate: rtos_allocate,
             deallocate: rtos_deallocate,
             monotonic_ms: ws63_rf_rs::uapi::monotonic_ms,
+        },
+        hisi_rtos::SchedulerPort {
+            max_timer_delay: core::num::NonZeroU32::new(TimerAlarm0::MAX_DELAY_MS).unwrap(),
+            arm_timer: TimerAlarm0::arm_millis,
+            disarm_timer: TimerAlarm0::disarm,
+            pend_reschedule: SoftwareInterrupt0::pend_interrupt,
         },
     )
     .expect("start radio runtime");
@@ -129,6 +144,24 @@ fn main() -> ! {
     loop {
         core::hint::spin_loop();
     }
+}
+
+#[cfg(feature = "full-init")]
+#[unsafe(no_mangle)]
+extern "C" fn TIMER_INT0() {
+    TimerAlarm0::clear_interrupt();
+    hisi_rtos::interrupt_enter();
+    hisi_rtos::on_timer_interrupt();
+    hisi_rtos::interrupt_exit();
+}
+
+#[cfg(feature = "full-init")]
+#[unsafe(no_mangle)]
+extern "C" fn SOFT_INT0() {
+    SoftwareInterrupt0::clear_interrupt();
+    hisi_rtos::interrupt_enter();
+    hisi_rtos::on_software_interrupt();
+    hisi_rtos::interrupt_exit();
 }
 
 #[cfg(feature = "full-init")]
@@ -179,8 +212,9 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
     rf_log_uart0(b" tval=0x");
     rf_log_uart0(&hex8(mtval));
     if !frame.is_null() {
-        // SAFETY: WS63 trap_entry passes the live 0x90-byte saved-register
-        // frame in a0. These offsets mirror startup.S save_all/restore_all.
+        // SAFETY: WS63 trap_entry passes the live saved-register frame in a0.
+        // The integer prefix offsets mirror startup.S save_all/restore_all;
+        // floating-point state is appended without changing this ABI.
         let (ra, a0, a1, a2, a3, a4, a5, s0, s1, s2) = unsafe {
             (
                 core::ptr::read_volatile(frame.byte_add(0x8c)),
@@ -373,6 +407,12 @@ fn run_wifi_smoke(
     uart.write(&hex8(diag.context_switches));
     uart.write(b" irq_preemptions=0x");
     uart.write(&hex8(diag.irq_preemptions));
+    uart.write(b" timer_irqs=0x");
+    uart.write(&hex8(diag.timer_interrupts));
+    uart.write(b" slice_preemptions=0x");
+    uart.write(&hex8(diag.time_slice_preemptions));
+    uart.write(b" software_irqs=0x");
+    uart.write(&hex8(diag.software_interrupts));
     uart.write(b" yields=0x");
     uart.write(&hex8(diag.yields));
     uart.write(b" sleeps=0x");
