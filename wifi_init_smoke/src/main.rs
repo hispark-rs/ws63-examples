@@ -927,8 +927,9 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
             uart.write(b"\r\n");
             let mut gateway_mac = [0_u8; 6];
             gateway_mac.copy_from_slice(&frame[6..12]);
-            run_ping_probe(uart, mac, config.address, gateway, gateway_mac, gateway);
-            run_ping_probe(
+            let gateway_ping =
+                run_ping_series(uart, mac, config.address, gateway, gateway_mac, gateway);
+            let public_ping = run_ping_series(
                 uart,
                 mac,
                 config.address,
@@ -936,6 +937,15 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
                 gateway_mac,
                 [1, 1, 1, 1],
             );
+            uart.write(b"RF5C_CONNECTIVITY_SUMMARY gateway_tx=0x");
+            uart.write(&hex8(gateway_ping.tx));
+            uart.write(b" gateway_rx=0x");
+            uart.write(&hex8(gateway_ping.rx));
+            uart.write(b" public_tx=0x");
+            uart.write(&hex8(public_ping.tx));
+            uart.write(b" public_rx=0x");
+            uart.write(&hex8(public_ping.rx));
+            uart.write(b"\r\n");
             return;
         }
         ws63_rf_rs::osal::osal_msleep(10);
@@ -1001,16 +1011,28 @@ fn write_frame_prefix(
 }
 
 #[cfg(feature = "full-init")]
-fn run_ping_probe(
+#[derive(Clone, Copy, Default)]
+struct PingStats {
+    tx: u32,
+    rx: u32,
+    tx_errors: u32,
+    rtt_total_ms: u64,
+    rtt_min_ms: u32,
+    rtt_max_ms: u32,
+}
+
+#[cfg(feature = "full-init")]
+fn run_ping_series(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     mac: [u8; 6],
     address: [u8; 4],
     gateway: [u8; 4],
     gateway_mac: [u8; 6],
     target: [u8; 4],
-) {
+) -> PingStats {
     const IDENTIFIER: u16 = 0x5753;
-    const SEQUENCE: u16 = 1;
+    const SAMPLE_COUNT: u16 = 5;
+    const SAMPLE_TIMEOUT_STEPS: usize = 100;
     // Ethernet (14) + IPv4 (20) + ICMP echo header (8) + payload (32).
     let mut request = [0_u8; 74];
     request[..6].copy_from_slice(&gateway_mac);
@@ -1019,78 +1041,138 @@ fn run_ping_probe(
     request[14] = 0x45;
     let ip_packet_len = (request.len() - 14) as u16;
     request[16..18].copy_from_slice(&ip_packet_len.to_be_bytes());
-    request[18..20].copy_from_slice(&1_u16.to_be_bytes());
     request[22] = 64;
     request[23] = 1;
     request[26..30].copy_from_slice(&address);
     request[30..34].copy_from_slice(&target);
-    let ip_checksum = internet_checksum(&request[14..34]);
-    request[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
     request[34] = 8;
     request[38..40].copy_from_slice(&IDENTIFIER.to_be_bytes());
-    request[40..42].copy_from_slice(&SEQUENCE.to_be_bytes());
     for (index, byte) in request[42..].iter_mut().enumerate() {
         *byte = index as u8;
     }
-    let icmp_checksum = internet_checksum(&request[34..]);
-    request[36..38].copy_from_slice(&icmp_checksum.to_be_bytes());
 
-    uart.write(b"RF5C_PING_BEGIN target=");
+    uart.write(b"RF5C_PING_SERIES_BEGIN target=");
     write_ipv4(uart, target);
     uart.write(b" via=");
     write_ipv4(uart, gateway);
+    uart.write(b" count=0x");
+    uart.write(&hex8(SAMPLE_COUNT as u32));
     uart.write(b"\r\n");
-    write_frame_prefix(uart, b"RFDBG_PING_TX", request.len(), &request[..64]);
-    if ws63_rf_rs::netif::transmit(&request).is_err() {
-        uart.write(b"RF5C_PING_ERR:tx\r\n");
-        return;
+
+    let mut stats = PingStats::default();
+    let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
+    for sequence in 1..=SAMPLE_COUNT {
+        request[18..20].copy_from_slice(&sequence.to_be_bytes());
+        request[24..26].fill(0);
+        let ip_checksum = internet_checksum(&request[14..34]);
+        request[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
+        request[40..42].copy_from_slice(&sequence.to_be_bytes());
+        request[36..38].fill(0);
+        let icmp_checksum = internet_checksum(&request[34..]);
+        request[36..38].copy_from_slice(&icmp_checksum.to_be_bytes());
+
+        uart.write(b"RF5C_PING_SAMPLE target=");
+        write_ipv4(uart, target);
+        uart.write(b" seq=0x");
+        uart.write(&hex8(sequence as u32));
+        let started_at = ws63_rf_rs::uapi::monotonic_ms();
+        if ws63_rf_rs::netif::transmit(&request).is_err() {
+            stats.tx_errors = stats.tx_errors.saturating_add(1);
+            uart.write(b" status=tx_error\r\n");
+            continue;
+        }
+        stats.tx = stats.tx.saturating_add(1);
+
+        let mut received = false;
+        for _ in 0..SAMPLE_TIMEOUT_STEPS {
+            if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame) {
+                if length >= 42
+                    && frame[12..14] == [0x08, 0x06]
+                    && frame[20..22] == [0x00, 0x01]
+                    && frame[38..42] == address
+                {
+                    let mut reply = [0_u8; 42];
+                    reply[..6].copy_from_slice(&frame[22..28]);
+                    reply[6..12].copy_from_slice(&mac);
+                    reply[12..14].copy_from_slice(&[0x08, 0x06]);
+                    reply[14..22]
+                        .copy_from_slice(&[0x00, 0x01, 0x08, 0x00, 0x06, 0x04, 0x00, 0x02]);
+                    reply[22..28].copy_from_slice(&mac);
+                    reply[28..32].copy_from_slice(&address);
+                    reply[32..38].copy_from_slice(&frame[22..28]);
+                    reply[38..42].copy_from_slice(&frame[28..32]);
+                    let _ = ws63_rf_rs::netif::transmit(&reply);
+                    continue;
+                }
+                if length >= 42
+                    && frame[12..14] == [0x08, 0x00]
+                    && frame[23] == 1
+                    && frame[26..30] == target
+                    && frame[30..34] == address
+                    && frame[34] == 0
+                    && frame[38..40] == IDENTIFIER.to_be_bytes()
+                    && frame[40..42] == sequence.to_be_bytes()
+                {
+                    let rtt_ms = ws63_rf_rs::uapi::monotonic_ms()
+                        .wrapping_sub(started_at)
+                        .min(u32::MAX as u64) as u32;
+                    stats.rx = stats.rx.saturating_add(1);
+                    stats.rtt_total_ms = stats.rtt_total_ms.saturating_add(rtt_ms as u64);
+                    stats.rtt_min_ms = if stats.rx == 1 {
+                        rtt_ms
+                    } else {
+                        stats.rtt_min_ms.min(rtt_ms)
+                    };
+                    stats.rtt_max_ms = stats.rtt_max_ms.max(rtt_ms);
+                    uart.write(b" status=ok rtt_ms=0x");
+                    uart.write(&hex8(rtt_ms));
+                    uart.write(b"\r\n");
+                    received = true;
+                    break;
+                }
+            }
+            ws63_rf_rs::osal::osal_msleep(10);
+        }
+        if !received {
+            uart.write(b" status=timeout\r\n");
+        }
     }
 
-    let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
-    for _ in 0..300 {
-        if let Some(length) = ws63_rf_rs::netif_smoltcp::take_received(&mut frame) {
-            write_frame_prefix(uart, b"RFDBG_PING_RX", length, &frame[..length.min(64)]);
-            if length >= 42
-                && frame[12..14] == [0x08, 0x06]
-                && frame[20..22] == [0x00, 0x01]
-                && frame[38..42] == address
-            {
-                let mut reply = [0_u8; 42];
-                reply[..6].copy_from_slice(&frame[22..28]);
-                reply[6..12].copy_from_slice(&mac);
-                reply[12..14].copy_from_slice(&[0x08, 0x06]);
-                reply[14..22].copy_from_slice(&[0x00, 0x01, 0x08, 0x00, 0x06, 0x04, 0x00, 0x02]);
-                reply[22..28].copy_from_slice(&mac);
-                reply[28..32].copy_from_slice(&address);
-                reply[32..38].copy_from_slice(&frame[22..28]);
-                reply[38..42].copy_from_slice(&frame[28..32]);
-                if ws63_rf_rs::netif::transmit(&reply).is_err() {
-                    uart.write(b"RFDBG_PING_ARP_REPLY_ERR\r\n");
-                } else {
-                    uart.write(b"RFDBG_PING_ARP_REPLY_OK\r\n");
-                }
-                continue;
-            }
-            if length >= 42
-                && frame[12..14] == [0x08, 0x00]
-                && frame[23] == 1
-                && frame[26..30] == target
-                && frame[30..34] == address
-                && frame[34] == 0
-                && frame[38..40] == IDENTIFIER.to_be_bytes()
-                && frame[40..42] == SEQUENCE.to_be_bytes()
-            {
-                uart.write(b"RF5C_PING_OK rx=0x");
-                uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
-                uart.write(b"\r\n");
-                return;
-            }
-        }
-        ws63_rf_rs::osal::osal_msleep(10);
+    let drops = stats.tx.saturating_sub(stats.rx);
+    let loss_pct = drops
+        .saturating_mul(100)
+        .checked_div(stats.tx)
+        .unwrap_or(100);
+    if stats.rx == 0 {
+        uart.write(b"RF5C_PING_TIMEOUT target=");
+    } else {
+        uart.write(b"RF5C_PING_OK target=");
     }
-    uart.write(b"RF5C_PING_TIMEOUT rx=0x");
-    uart.write(&hex8(ws63_rf_rs::netif::rx_received()));
+    write_ipv4(uart, target);
+    uart.write(b" tx=0x");
+    uart.write(&hex8(stats.tx));
+    uart.write(b" rx=0x");
+    uart.write(&hex8(stats.rx));
+    uart.write(b" drop=0x");
+    uart.write(&hex8(drops));
+    uart.write(b" tx_error=0x");
+    uart.write(&hex8(stats.tx_errors));
+    uart.write(b" loss_pct=0x");
+    uart.write(&hex8(loss_pct));
+    uart.write(b" rtt_min_ms=0x");
+    uart.write(&hex8(stats.rtt_min_ms));
+    uart.write(b" rtt_avg_ms=0x");
+    uart.write(&hex8(
+        stats
+            .rtt_total_ms
+            .checked_div(stats.rx as u64)
+            .unwrap_or(0)
+            .min(u32::MAX as u64) as u32,
+    ));
+    uart.write(b" rtt_max_ms=0x");
+    uart.write(&hex8(stats.rtt_max_ms));
     uart.write(b"\r\n");
+    stats
 }
 
 #[cfg(feature = "full-init")]
