@@ -59,6 +59,21 @@ fn hex8(n: u32) -> [u8; 8] {
     buf
 }
 
+fn hex16(n: u64) -> [u8; 16] {
+    let mut buf = [0u8; 16];
+    let mut i = 0;
+    while i < 16 {
+        let nib = (n >> ((15 - i) * 4)) & 0xf;
+        buf[i] = if nib < 10 {
+            b'0' + nib as u8
+        } else {
+            b'a' + (nib - 10) as u8
+        };
+        i += 1;
+    }
+    buf
+}
+
 #[cfg(feature = "full-init")]
 fn rtos_contract_violation(_: hisi_rtos::ContractViolation) -> ! {
     panic!("hisi-rtos scheduler contract violation")
@@ -310,6 +325,7 @@ fn run_wifi_smoke(
         Ok(wifi) => wifi,
         Err(error) => {
             write_wifi_error(uart, b"RF2_INIT_ERR", error);
+            dump_rtos_task_metrics(uart);
             return;
         }
     };
@@ -752,7 +768,12 @@ fn run_wifi_smoke(
             uart.write(b"\r\n");
         }
     }
-    let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 16];
+    dump_rtos_task_metrics(uart);
+}
+
+#[cfg(feature = "full-init")]
+fn dump_rtos_task_metrics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 32];
     let task_count = hisi_rtos::task_diagnostics(&mut tasks);
     for task in &tasks[..task_count] {
         if task.state == hisi_rtos::TaskState::Free {
@@ -764,14 +785,51 @@ fn run_wifi_smoke(
         uart.write(&hex8(task.state as u32));
         uart.write(b" entry=0x");
         uart.write(&hex8(task.entry as u32));
-        uart.write(b" sem=0x");
-        uart.write(&hex8(task.waiting_sem as u32));
-        uart.write(b" wake_at=0x");
-        uart.write(&hex8(task.wake_at as u32));
+        uart.write(b" base_priority=0x");
+        uart.write(&hex8(task.base_priority as u32));
         uart.write(b" priority=0x");
         uart.write(&hex8(task.priority as u32));
+        uart.write(b" sem=0x");
+        uart.write(&hex8(task.waiting_sem as u32));
+        uart.write(b" mutex=0x");
+        uart.write(&hex8(task.waiting_mutex as u32));
+        uart.write(b" wake_at=0x");
+        uart.write(&hex16(task.wake_at));
         uart.write(b" lock=0x");
         uart.write(&hex8(task.scheduler_lock_depth as u32));
+        uart.write(b"\r\n");
+
+        let policy = match task.run_policy {
+            hisi_rtos::RunPolicy::Cooperative => 0,
+            hisi_rtos::RunPolicy::Budgeted(_) => 1,
+            hisi_rtos::RunPolicy::Preemptive { .. } => 2,
+        };
+        uart.write(b"RFDBG_TASK_METRIC id=0x");
+        uart.write(&hex8(task.task as u32));
+        uart.write(b" policy=0x");
+        uart.write(&hex8(policy));
+        uart.write(b" cpu_ms=0x");
+        uart.write(&hex16(task.cpu_time_ms));
+        uart.write(b" irq_ms=0x");
+        uart.write(&hex16(task.irq_time_ms));
+        uart.write(b" dispatches=0x");
+        uart.write(&hex8(task.dispatches));
+        uart.write(b" budget_exhaustions=0x");
+        uart.write(&hex8(task.budget_exhaustions));
+        uart.write(b" budget_remaining=0x");
+        uart.write(&hex8(task.budget_remaining));
+        uart.write(b" max_run_ms=0x");
+        uart.write(&hex16(task.max_continuous_run_ms));
+        uart.write(b" max_ready_ms=0x");
+        uart.write(&hex16(task.max_ready_latency_ms));
+        uart.write(b" lock_entries=0x");
+        uart.write(&hex8(task.scheduler_lock_entries));
+        uart.write(b" max_lock_ms=0x");
+        uart.write(&hex16(task.max_scheduler_lock_ms));
+        uart.write(b" irq_entries=0x");
+        uart.write(&hex8(task.irq_entries));
+        uart.write(b" max_irq_ms=0x");
+        uart.write(&hex16(task.max_irq_span_ms));
         uart.write(b"\r\n");
     }
 }
@@ -1030,11 +1088,11 @@ fn run_ping_probe(
 #[cfg(feature = "full-init")]
 fn internet_checksum(bytes: &[u8]) -> u16 {
     let mut sum = 0_u32;
-    let mut chunks = bytes.chunks_exact(2);
-    for chunk in &mut chunks {
-        sum += u16::from_be_bytes([chunk[0], chunk[1]]) as u32;
+    let (chunks, remainder) = bytes.as_chunks::<2>();
+    for chunk in chunks {
+        sum += u16::from_be_bytes(*chunk) as u32;
     }
-    if let Some(&last) = chunks.remainder().first() {
+    if let Some(&last) = remainder.first() {
         sum += (last as u32) << 8;
     }
     while sum > u16::MAX as u32 {
