@@ -1016,6 +1016,9 @@ struct PingStats {
     tx: u32,
     rx: u32,
     tx_errors: u32,
+    rx_queue_dropped: u32,
+    rx_queue_high_watermark: u32,
+    rx_queue_pending: u32,
     rtt_total_ms: u64,
     rtt_min_ms: u32,
     rtt_max_ms: u32,
@@ -1059,6 +1062,7 @@ fn run_ping_series(
     uart.write(&hex8(SAMPLE_COUNT as u32));
     uart.write(b"\r\n");
 
+    ws63_rf_rs::netif_smoltcp::reset_rx_queue_diagnostics();
     let mut stats = PingStats::default();
     let mut frame = [0_u8; ws63_rf_rs::netif_smoltcp::MTU];
     for sequence in 1..=SAMPLE_COUNT {
@@ -1139,6 +1143,10 @@ fn run_ping_series(
     }
 
     let drops = stats.tx.saturating_sub(stats.rx);
+    let rx_queue = ws63_rf_rs::netif_smoltcp::rx_queue_diagnostics();
+    stats.rx_queue_dropped = rx_queue.dropped;
+    stats.rx_queue_high_watermark = rx_queue.high_watermark as u32;
+    stats.rx_queue_pending = rx_queue.pending as u32;
     let loss_pct = drops
         .saturating_mul(100)
         .checked_div(stats.tx)
@@ -1157,6 +1165,12 @@ fn run_ping_series(
     uart.write(&hex8(drops));
     uart.write(b" tx_error=0x");
     uart.write(&hex8(stats.tx_errors));
+    uart.write(b" rx_queue_drop=0x");
+    uart.write(&hex8(stats.rx_queue_dropped));
+    uart.write(b" rx_queue_high_water=0x");
+    uart.write(&hex8(stats.rx_queue_high_watermark));
+    uart.write(b" rx_queue_pending=0x");
+    uart.write(&hex8(stats.rx_queue_pending));
     uart.write(b" loss_pct=0x");
     uart.write(&hex8(loss_pct));
     uart.write(b" rtt_min_ms=0x");
