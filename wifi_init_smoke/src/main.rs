@@ -18,7 +18,10 @@ compile_error!("upstream-supplicant and the vendor personal profiles are mutuall
 #[cfg(all(feature = "personal", not(any(feature = "wpa", feature = "wpa3"))))]
 compile_error!("the internal personal feature requires either wpa or wpa3");
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 mod network_runner;
 
 use hisi_hal::Peripherals;
@@ -67,6 +70,16 @@ const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
 const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
     Some(value) => value.as_bytes(),
     None => b"",
+};
+#[cfg(feature = "upstream-supplicant")]
+const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
+    Some(value) => value.as_bytes(),
+    None => b"HUAWEI-HLJ_Guest",
+};
+#[cfg(feature = "upstream-supplicant")]
+const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
+    Some(value) => value.as_bytes(),
+    None => b"testtest",
 };
 
 #[cfg(all(
@@ -463,6 +476,37 @@ fn run_wifi_smoke(
     #[cfg(feature = "upstream-supplicant")]
     {
         uart.write(b"W2D_NATIVE_RUNNER_RX_READY\r\n");
+        let Some(result) = results[..scan.count]
+            .iter()
+            .find(|result| result.ssid.as_bytes() == TEST_SSID)
+        else {
+            uart.write(b"W2D_AP_NOT_FOUND ssid=");
+            uart.write(TEST_SSID);
+            uart.write(b"\r\n");
+            return;
+        };
+        let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
+            uart.write(b"W2D_WPA_CONFIG_ERR:invalid-passphrase\r\n");
+            return;
+        };
+        let Some(network) = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000)
+        else {
+            uart.write(b"W2D_WPA_CONFIG_ERR:unsupported-security\r\n");
+            return;
+        };
+        uart.write(b"W2D_CONNECT_BEGIN ssid=");
+        uart.write(network.ssid.as_bytes());
+        uart.write(b"\r\n");
+        match radio_block_on(wifi.controller.connect(network)) {
+            Ok(info) => {
+                uart.write(b"W2D_WPA2_CONNECT_OK freq=0x");
+                uart.write(&hex8(info.frequency_mhz as u32));
+                uart.write(b"\r\n");
+                write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+                network_runner::run(uart, wifi.device);
+            }
+            Err(error) => write_radio_error(uart, b"W2D_WPA2_CONNECT_ERR", error),
+        }
         dump_rtos_task_metrics();
     }
     #[cfg(feature = "personal")]
@@ -1543,7 +1587,7 @@ fn internet_checksum(bytes: &[u8]) -> u16 {
     !(sum as u16)
 }
 
-#[cfg(all(feature = "full-init", not(feature = "upstream-supplicant")))]
+#[cfg(feature = "full-init")]
 fn write_ipv4(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, address: [u8; 4]) {
     for (index, byte) in address.into_iter().enumerate() {
         if index != 0 {
