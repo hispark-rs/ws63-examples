@@ -463,6 +463,8 @@ fn run_wifi_smoke(
     uart.write(&hex8(diag.time_slice_preemptions));
     uart.write(b" software_irqs=0x");
     uart.write(&hex8(diag.software_interrupts));
+    uart.write(b" switch_race_recoveries=0x");
+    uart.write(&hex8(diag.switch_race_recoveries));
     uart.write(b" yields=0x");
     uart.write(&hex8(diag.yields));
     uart.write(b" sleeps=0x");
@@ -774,6 +776,10 @@ fn run_wifi_smoke(
 
 #[cfg(feature = "full-init")]
 fn dump_rtos_task_metrics() {
+    let diag = hisi_rtos::diagnostics();
+    rf_log_uart0(b"RFDBG_RTOS_SWITCH_RACE_RECOVERIES=0x");
+    rf_log_uart0(&hex8(diag.switch_race_recoveries));
+    rf_log_uart0(b"\r\n");
     let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 32];
     let task_count = hisi_rtos::task_diagnostics(&mut tasks);
     for task in &tasks[..task_count] {
