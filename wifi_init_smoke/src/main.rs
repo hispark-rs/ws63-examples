@@ -1019,6 +1019,8 @@ struct PingStats {
     rx_queue_dropped: u32,
     rx_queue_high_watermark: u32,
     rx_queue_pending: u32,
+    rx_echo_replies: u32,
+    rx_echo_sequence_mask: u32,
     rtt_total_ms: u64,
     rtt_min_ms: u32,
     rtt_max_ms: u32,
@@ -1147,6 +1149,8 @@ fn run_ping_series(
     stats.rx_queue_dropped = rx_queue.dropped;
     stats.rx_queue_high_watermark = rx_queue.high_watermark as u32;
     stats.rx_queue_pending = rx_queue.pending as u32;
+    stats.rx_echo_replies = rx_queue.icmp_echo_replies;
+    stats.rx_echo_sequence_mask = rx_queue.icmp_sequence_mask;
     let loss_pct = drops
         .saturating_mul(100)
         .checked_div(stats.tx)
@@ -1171,6 +1175,10 @@ fn run_ping_series(
     uart.write(&hex8(stats.rx_queue_high_watermark));
     uart.write(b" rx_queue_pending=0x");
     uart.write(&hex8(stats.rx_queue_pending));
+    uart.write(b" rx_echo_replies=0x");
+    uart.write(&hex8(stats.rx_echo_replies));
+    uart.write(b" rx_echo_sequence_mask=0x");
+    uart.write(&hex8(stats.rx_echo_sequence_mask));
     uart.write(b" loss_pct=0x");
     uart.write(&hex8(loss_pct));
     uart.write(b" rtt_min_ms=0x");
