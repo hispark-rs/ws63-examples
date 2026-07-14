@@ -9,9 +9,9 @@ license = "MIT"
 repository = "https://github.com/hispark-rs/ws63-examples"
 
 [workspace.dependencies]
-ws63-pac = "0.2"
-hisi-hal = "0.7.0-alpha.1"
-hisi-riscv-rt  = "0.4"
+ws63-pac = "0.3"
+hisi-hal = "0.7.0-alpha.2"
+hisi-riscv-rt  = "0.5.4"
 riscv = "0.13"
 riscv-rt = "0.14"
 embedded-hal = "1.0.0"
