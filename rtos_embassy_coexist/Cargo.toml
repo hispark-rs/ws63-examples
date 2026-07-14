@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 critical-section = "1"
 embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
-embassy-time = { version = "0.5", features = ["tick-hz-1_000"] }
+embassy-time = { version = "0.5", features = ["tick-hz-1_000_000"] }
 hisi-alloc = { path = "../../../crates/hisi-alloc" }
 hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", default-features = false, features = ["panic-uart0"] }
