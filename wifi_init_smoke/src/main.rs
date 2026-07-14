@@ -13,6 +13,8 @@
 
 use hisi_hal::Peripherals;
 use hisi_hal::delay::Delay;
+#[cfg(feature = "full-init")]
+use hisi_hal::interrupt;
 use hisi_hal::rf_power::{FactoryXoTrim, RfPower};
 #[cfg(feature = "full-init")]
 use hisi_hal::software_interrupt::SoftwareInterrupt0;
@@ -23,12 +25,14 @@ use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
 use hisi_riscv_rt::entry;
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+use static_cell::StaticCell;
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+use ws63_rf_rs::hisi_rf_backend::{Ws63RadioState, Ws63WifiBackend};
 #[cfg(feature = "full-init")]
-use ws63_rf_rs::wifi::{Error as WifiError, MAX_SCAN_RESULTS, ScanResult};
+use ws63_rf_rs::wifi::MAX_SCAN_RESULTS;
 #[cfg(all(feature = "full-init", not(feature = "wpa")))]
-use ws63_rf_rs::wifi::{OpenNetwork, Wifi as ActiveWifi};
-#[cfg(feature = "wpa")]
-use ws63_rf_rs::wifi::{PersonalNetwork, WpaWifi as ActiveWifi};
+use ws63_rf_rs::wifi::{Error as WifiError, OpenNetwork, ScanResult, Wifi as ActiveWifi};
 
 #[cfg(all(feature = "full-init", not(feature = "wpa")))]
 const TEST_SSID: &[u8] = b"HUAWEI-HLJ";
@@ -39,6 +43,15 @@ const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
     Some(value) => value.as_bytes(),
     None => b"",
 };
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+const RADIO_EVENT_DEPTH: usize = 8;
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+type Ws63RadioRunner = hisi_rf::RadioRunner<Ws63WifiBackend<'static>, RADIO_EVENT_DEPTH>;
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+static RADIO_STATE: Ws63RadioState<RADIO_EVENT_DEPTH> = Ws63RadioState::new();
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+static RADIO_RUNNER: StaticCell<Ws63RadioRunner> = StaticCell::new();
 
 #[cfg(feature = "rf-watchpoint-gate")]
 #[unsafe(no_mangle)]
@@ -158,6 +171,13 @@ fn main() -> ! {
         },
     )
     .expect("start radio runtime");
+
+    // `start_with_port` installs the timer/SWI delivery mechanism but leaves
+    // the global machine-interrupt policy to the application. Ported yields
+    // are invalid until MIE is enabled because their handoff completes through
+    // the software-interrupt trap path.
+    unsafe { interrupt::enable_global() };
+    hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
     run_wifi_smoke(&uart, efuse);
@@ -317,7 +337,214 @@ fn run_wifi_smoke(
     uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+fn run_wifi_smoke(
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    efuse: hisi_hal::peripherals::Efuse<'static>,
+) {
+    uart.write(b"RF2_INIT_BEGIN\r\n");
+    let radio = match hisi_rf::init(
+        ws63_rf_rs::hisi_rf_backend::config(),
+        ws63_rf_rs::hisi_rf_backend::resources(efuse),
+        &RADIO_STATE,
+    ) {
+        Ok(radio) => radio,
+        Err(error) => {
+            write_radio_error(uart, b"RF2_INIT_ERR", error);
+            return;
+        }
+    };
+    let hisi_rf::RadioParts { mut wifi, runner } = radio.split();
+    let runner = RADIO_RUNNER.init(runner);
+    if let Err(error) = hisi_rf_rtos_driver::spawn(
+        radio_runner_task,
+        runner as *mut Ws63RadioRunner as *mut core::ffi::c_void,
+        hisi_rf_rtos_driver::TaskConfig {
+            stack_size: core::num::NonZeroUsize::new(8 * 1024).unwrap(),
+            priority: 10,
+        },
+    ) {
+        write_radio_error(
+            uart,
+            b"RF2_INIT_ERR",
+            hisi_rf::Error::Backend(hisi_rf::BackendError {
+                class: hisi_rf::BackendErrorClass::Initialize,
+                code: 0x3000_0000 | radio_runtime_error_code(error),
+            }),
+        );
+        return;
+    }
+    if let Err(error) = radio_block_on(wifi.controller.initialize()) {
+        write_radio_error(uart, b"RF2_INIT_ERR", error);
+        dump_rtos_task_metrics();
+        return;
+    }
+    uart.write(b"RF2_INIT_OK ifname=hisi-rf\r\n");
+    write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+
+    #[cfg(feature = "rf-queue-guard")]
+    ws63_rf_rs::osal::arm_frw_queue_guard();
+
+    uart.write(b"RF3_SCAN_BEGIN\r\n");
+    let mut results = [hisi_rf::ScanResult::empty(); MAX_SCAN_RESULTS];
+    let scan = match radio_block_on(wifi.controller.scan(
+        hisi_rf::ScanConfig::try_from_timeout_ms(15_000).unwrap(),
+        &mut results,
+    )) {
+        Ok(scan) => scan,
+        Err(error) => {
+            write_radio_error(uart, b"RF3_SCAN_ERR", error);
+            return;
+        }
+    };
+    uart.write(b"RF3_SCAN_OK count=0x");
+    uart.write(&hex8(scan.count as u32));
+    uart.write(b" truncated=0x");
+    uart.write(&hex8(scan.truncated as u32));
+    uart.write(b"\r\n");
+    write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+    for result in &results[..scan.count] {
+        uart.write(b"RF3_AP ssid=");
+        uart.write(result.ssid.as_bytes());
+        uart.write(b" freq=0x");
+        uart.write(&hex8(result.frequency_mhz as u32));
+        uart.write(b" rssi=0x");
+        uart.write(&hex8(result.rssi_dbm as i32 as u32));
+        uart.write(b" bssid=");
+        for byte in result.bssid {
+            uart.write(&hex8(byte as u32)[6..]);
+        }
+        uart.write(b"\r\n");
+    }
+    let Some(result) = results[..scan.count]
+        .iter()
+        .find(|result| result.ssid.as_bytes() == TEST_SSID)
+    else {
+        uart.write(b"RF5B_AP_NOT_FOUND ssid=");
+        uart.write(TEST_SSID);
+        uart.write(b"\r\n");
+        return;
+    };
+    let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
+        uart.write(b"RF5B_WPA_CONFIG_ERR:invalid-passphrase\r\n");
+        return;
+    };
+    let Some(network) = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000) else {
+        uart.write(b"RF5B_WPA_CONFIG_ERR:unsupported-security\r\n");
+        return;
+    };
+    uart.write(b"RF5B_CONNECT_BEGIN ssid=");
+    uart.write(network.ssid.as_bytes());
+    uart.write(b"\r\n");
+    match radio_block_on(wifi.controller.connect(network)) {
+        Ok(info) => {
+            uart.write(b"RF5B_WPA_CONNECT_OK freq=0x");
+            uart.write(&hex8(info.frequency_mhz as u32));
+            uart.write(b"\r\n");
+            write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+            let _device = wifi.device;
+            run_arp_probe(uart);
+        }
+        Err(error) => write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
+    }
+    dump_rtos_task_metrics();
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+extern "C" fn radio_runner_task(argument: *mut core::ffi::c_void) -> *mut core::ffi::c_void {
+    // SAFETY: `argument` comes from `RADIO_RUNNER.init`, remains live forever,
+    // and this is the only task that receives its mutable pointer.
+    let runner = unsafe { &mut *argument.cast::<Ws63RadioRunner>() };
+    loop {
+        if !runner.run_once() {
+            hisi_rf_rtos_driver::yield_now().expect("yield radio runner");
+        }
+    }
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+fn radio_block_on<F: core::future::Future>(future: F) -> F::Output {
+    use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+
+    static VTABLE: RawWakerVTable = RawWakerVTable::new(clone, wake, wake, drop_waker);
+    const fn clone(_: *const ()) -> RawWaker {
+        RawWaker::new(core::ptr::null(), &VTABLE)
+    }
+    const fn wake(_: *const ()) {}
+    const fn drop_waker(_: *const ()) {}
+
+    let mut future = core::pin::pin!(future);
+    // SAFETY: the no-op vtable never dereferences its null data pointer. This
+    // executor explicitly yields and polls again rather than relying on wake.
+    let waker = unsafe { Waker::from_raw(clone(core::ptr::null())) };
+    let mut context = Context::from_waker(&waker);
+    loop {
+        if let Poll::Ready(output) = future.as_mut().poll(&mut context) {
+            return output;
+        }
+        hisi_rf_rtos_driver::yield_now().expect("yield radio controller");
+    }
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+fn write_radio_event(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, event: hisi_rf::WifiEvent) {
+    uart.write(b"A4_RADIO_EVENT kind=");
+    match event {
+        hisi_rf::WifiEvent::Initialized => uart.write(b"initialized"),
+        hisi_rf::WifiEvent::ScanCompleted { .. } => uart.write(b"scan-completed"),
+        hisi_rf::WifiEvent::Connected(_) => uart.write(b"connected"),
+        hisi_rf::WifiEvent::Disconnected { .. } => uart.write(b"disconnected"),
+        hisi_rf::WifiEvent::Failed(_) => uart.write(b"failed"),
+    }
+    uart.write(b"\r\n");
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+fn write_radio_error(
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    marker: &[u8],
+    error: hisi_rf::Error,
+) {
+    uart.write(marker);
+    let (class, code) = match error {
+        hisi_rf::Error::AlreadyInitialized => (0_u32, 1_u32),
+        hisi_rf::Error::Protocol => (0, 2),
+        hisi_rf::Error::Backend(error) => (radio_error_class_code(error.class), error.code),
+    };
+    uart.write(b" class=0x");
+    uart.write(&hex8(class));
+    uart.write(b" code=0x");
+    uart.write(&hex8(code));
+    uart.write(b"\r\n");
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+const fn radio_error_class_code(class: hisi_rf::BackendErrorClass) -> u32 {
+    match class {
+        hisi_rf::BackendErrorClass::Initialize => 1,
+        hisi_rf::BackendErrorClass::Busy => 2,
+        hisi_rf::BackendErrorClass::Timeout => 3,
+        hisi_rf::BackendErrorClass::UnsupportedSecurity => 4,
+        hisi_rf::BackendErrorClass::Connect => 5,
+        hisi_rf::BackendErrorClass::Other => 6,
+    }
+}
+
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
+    match error {
+        hisi_rf_rtos_driver::Error::NotInstalled => 1,
+        hisi_rf_rtos_driver::Error::AlreadyInstalled => 2,
+        hisi_rf_rtos_driver::Error::ResourceExhausted => 3,
+        hisi_rf_rtos_driver::Error::NoTaskSlots => 4,
+        hisi_rf_rtos_driver::Error::InvalidHandle => 5,
+        hisi_rf_rtos_driver::Error::InvalidContext => 6,
+        hisi_rf_rtos_driver::Error::TimedOut => 7,
+        hisi_rf_rtos_driver::Error::Runtime => 8,
+    }
+}
+
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'_>,
@@ -1232,7 +1459,7 @@ fn write_ipv4(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, address: [u8; 4
     }
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn write_wifi_error(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
@@ -1275,7 +1502,7 @@ fn write_wifi_error(
             ws63_rf_rs::wifi::ScanStatus::Timeout => 3,
             ws63_rf_rs::wifi::ScanStatus::Unknown(code) => code,
         },
-        WifiError::StartConnect(code) => code as u32,
+        WifiError::StartConnect(code) | WifiError::StartDisconnect(code) => code as u32,
         WifiError::ConnectFailed(status) | WifiError::Disconnected(status) => status as u32,
         WifiError::Timeout => 3,
         WifiError::UnsupportedTarget => u32::MAX,
