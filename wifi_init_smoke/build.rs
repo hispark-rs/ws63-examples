@@ -231,7 +231,7 @@ fn main() {
                 println!("cargo:rustc-link-arg=--no-whole-archive");
             }
         }
-        if std::env::var_os("CARGO_FEATURE_WPA").is_some() {
+        if std::env::var_os("CARGO_FEATURE_PERSONAL").is_some() {
             for lib in metadata_list("DEP_WS63_RADIO_SYS_WPA_ARCHIVES") {
                 println!(
                     "cargo:rustc-link-arg={}",
@@ -255,4 +255,5 @@ fn main() {
     println!("cargo:rerun-if-changed={}", rom_callbacks.display());
     println!("cargo:rerun-if-changed={}", rom_callback_archive.display());
     println!("cargo:rerun-if-changed={}", lib_dir.display());
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_PERSONAL");
 }

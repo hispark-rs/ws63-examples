@@ -12,11 +12,13 @@ default = []
 # which lets stock rust-lld choose the layout and patches the vendor custom
 # relocations before a layout-verification relink.
 full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
+# Shared internal station path selected by the concrete WPA2 or WPA3 profile.
+personal = []
 # Run the protected-network smoke through the vendor WPA supplicant.
-wpa = ["full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"]
+wpa = ["personal", "full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"]
 # Link the W2 WPA3-Personal/SAE candidate. This remains a guarded bring-up
 # feature until pure WPA3 HIL passes on a controlled AP.
-wpa3 = ["full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa3-personal"]
+wpa3 = ["personal", "full-init", "ws63-rf-rs/wifi-wpa3-personal", "ws63-radio-sys/wpa3-personal"]
 # Forward vendor Wi-Fi diagnostics to UART0. Keep this opt-in: the vendor log
 # callbacks are synchronous, so enabling them changes scheduler and RF timing.
 rf-vendor-log = ["full-init"]
