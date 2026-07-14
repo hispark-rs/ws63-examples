@@ -59,6 +59,7 @@ fn hex8(n: u32) -> [u8; 8] {
     buf
 }
 
+#[cfg(feature = "full-init")]
 fn hex16(n: u64) -> [u8; 16] {
     let mut buf = [0u8; 16];
     let mut i = 0;
