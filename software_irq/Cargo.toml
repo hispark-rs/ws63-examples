@@ -10,8 +10,7 @@ name = "software_irq"
 path = "src/main.rs"
 
 [dependencies]
-ws63-pac = { path = "../../../crates/chips/ws63/ws63-pac" }
-hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63"] }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
 
 [workspace]

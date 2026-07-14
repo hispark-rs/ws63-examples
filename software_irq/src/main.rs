@@ -9,7 +9,8 @@
 
 use core::sync::atomic::{AtomicU32, Ordering};
 use hisi_hal::Peripherals;
-use hisi_hal::interrupt::{self, Interrupt};
+use hisi_hal::software_interrupt::SoftwareInterrupt0;
+use hisi_hal::interrupt;
 use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_rt::entry;
 
@@ -28,9 +29,7 @@ extern "C" fn SOFT_INT0() {
         Ordering::Relaxed,
     );
 
-    let sys = unsafe { &*ws63_pac::SysCtl1::ptr() };
-    sys.soft_int_clr().write(|w| w.soft_int0_clr().set_bit());
-    interrupt::clear_pending(Interrupt::SOFT_INT0);
+    SoftwareInterrupt0::clear_interrupt();
 }
 
 fn write_hex(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, value: u32) {
@@ -52,23 +51,19 @@ fn main() -> ! {
             ..Config::default()
         },
     );
-    let sys = unsafe { &*ws63_pac::SysCtl1::ptr() };
+    let software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
 
     uart.write(b"\r\nWS63 software IRQ diagnostic\r\n");
 
     unsafe {
-        interrupt::init();
-        interrupt::enable(Interrupt::SOFT_INT0);
         interrupt::enable_global();
     }
 
-    sys.soft_int_clr().write(|w| w.soft_int0_clr().set_bit());
-    sys.soft_int_en().write(|w| w.soft_int0_en().set_bit());
     uart.write(b"SOFT_INT_STS before set: ");
-    write_hex(&uart, sys.soft_int_sts().read().bits());
+    write_hex(&uart, software_interrupt.is_pending() as u32);
     uart.write(b"\r\n");
 
-    sys.soft_int_set().write(|w| w.soft_int0_set().set_bit());
+    software_interrupt.pend();
 
     for _ in 0..5_000_000 {
         if TRAP_COUNT.load(Ordering::Relaxed) != 0 {
@@ -84,7 +79,7 @@ fn main() -> ! {
     uart.write(b" mcause: ");
     write_hex(&uart, mcause);
     uart.write(b" status after handler: ");
-    write_hex(&uart, sys.soft_int_sts().read().bits());
+    write_hex(&uart, software_interrupt.is_pending() as u32);
     uart.write(b"\r\n");
 
     if count == 1 && mcause == 0x8000_0024 {

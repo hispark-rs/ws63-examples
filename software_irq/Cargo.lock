@@ -255,7 +255,6 @@ version = "0.1.0"
 dependencies = [
  "hisi-hal",
  "hisi-riscv-rt",
- "ws63-pac",
 ]
 
 [[package]]
