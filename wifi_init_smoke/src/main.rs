@@ -11,6 +11,9 @@
 #![no_std]
 #![no_main]
 
+#[cfg(all(feature = "full-init", feature = "wpa"))]
+mod network_runner;
+
 use hisi_hal::Peripherals;
 use hisi_hal::delay::Delay;
 #[cfg(feature = "full-init")]
@@ -176,7 +179,11 @@ fn main() -> ! {
     // the global machine-interrupt policy to the application. Ported yields
     // are invalid until MIE is enabled because their handoff completes through
     // the software-interrupt trap path.
-    unsafe { interrupt::enable_global() };
+    #[cfg(feature = "full-init")]
+    unsafe {
+        interrupt::enable_global()
+    };
+    #[cfg(feature = "full-init")]
     hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
@@ -442,8 +449,7 @@ fn run_wifi_smoke(
             uart.write(&hex8(info.frequency_mhz as u32));
             uart.write(b"\r\n");
             write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
-            let _device = wifi.device;
-            run_arp_probe(uart);
+            network_runner::run(uart, wifi.device);
         }
         Err(error) => write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
     }
@@ -1069,7 +1075,7 @@ fn dump_rtos_task_metrics() {
     }
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     let Some(mac) = ws63_rf_rs::netif::hardware_address() else {
         uart.write(b"RF5A_ARP_ERR:no-mac\r\n");
@@ -1184,7 +1190,7 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     uart.write(b"\r\n");
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn run_static_arp_diagnostic(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mac: [u8; 6]) {
     const ADDRESS: [u8; 4] = [192, 168, 155, 2];
     const GATEWAY: [u8; 4] = [192, 168, 155, 1];
@@ -1220,7 +1226,7 @@ fn run_static_arp_diagnostic(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, 
     uart.write(b"RFDBG_STATIC_ARP_TIMEOUT\r\n");
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn write_frame_prefix(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
@@ -1237,7 +1243,7 @@ fn write_frame_prefix(
     uart.write(b"\r\n");
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 #[derive(Clone, Copy, Default)]
 struct PingStats {
     tx: u32,
@@ -1253,7 +1259,7 @@ struct PingStats {
     rtt_max_ms: u32,
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn run_ping_series(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     mac: [u8; 6],
@@ -1424,7 +1430,7 @@ fn run_ping_series(
     stats
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "wpa")))]
 fn internet_checksum(bytes: &[u8]) -> u16 {
     let mut sum = 0_u32;
     let (chunks, remainder) = bytes.as_chunks::<2>();
