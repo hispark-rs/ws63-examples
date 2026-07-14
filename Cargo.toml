@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["blinky", "rtos_preemption"]
+members = ["blinky", "rtos_preemption", "rtos_priority_inheritance"]
 
 [workspace.package]
 version = "0.1.0"

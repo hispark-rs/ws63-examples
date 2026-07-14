@@ -1,0 +1,19 @@
+[package]
+name = "rtos_priority_inheritance"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 RTOS priority-inheritance HIL"
+license = "MIT"
+
+[[bin]]
+name = "rtos_priority_inheritance"
+path = "src/main.rs"
+
+[dependencies]
+critical-section = "1"
+hisi-alloc = { path = "../../../crates/hisi-alloc" }
+hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
+hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", default-features = false, features = ["panic-uart0"] }
+hisi-rf-rtos-driver = { path = "../../../crates/hisi-rf-rtos-driver" }
+hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header"] }
+hisi-rtos = { path = "../../../crates/hisi-rtos" }
