@@ -567,9 +567,11 @@ extern "C" fn radio_runner_task(argument: *mut core::ffi::c_void) -> *mut core::
     // and this is the only task that receives its mutable pointer.
     let runner = unsafe { &mut *argument.cast::<Ws63RadioRunner>() };
     loop {
-        if !runner.run_once() {
-            hisi_rf_rtos_driver::yield_now().expect("yield radio runner");
-        }
+        let _ = runner.run_once();
+        // `run_once` bounds one hostap batch; even a busy runner must yield so a
+        // cooperative controller task can consume completions and so vendor
+        // workers can deliver the next RX/timeout event.
+        hisi_rf_rtos_driver::yield_now().expect("yield radio runner");
     }
 }
 
