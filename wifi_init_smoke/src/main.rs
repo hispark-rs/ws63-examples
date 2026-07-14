@@ -371,6 +371,8 @@ fn run_wifi_smoke(
     let diag = hisi_rtos::diagnostics();
     uart.write(b"RFDBG_RTOS switches=0x");
     uart.write(&hex8(diag.context_switches));
+    uart.write(b" irq_preemptions=0x");
+    uart.write(&hex8(diag.irq_preemptions));
     uart.write(b" yields=0x");
     uart.write(&hex8(diag.yields));
     uart.write(b" sleeps=0x");
