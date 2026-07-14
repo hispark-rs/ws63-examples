@@ -49,6 +49,10 @@ fn monotonic_ms() -> u64 {
     Instant::now().raw() / 24_000
 }
 
+fn rtos_contract_violation(_: hisi_rtos::ContractViolation) -> ! {
+    panic!("hisi-rtos scheduler contract violation")
+}
+
 fn lock_handle() -> MutexHandle {
     critical_section::with(|cs| LOCK.borrow(cs).get().unwrap())
 }
@@ -118,11 +122,13 @@ fn main() -> ! {
 
     let _timer = TimerAlarm0::new(p.TIMER);
     let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
-    hisi_rtos::start_with_port(
-        hisi_rtos::Config {
+    let _runtime = hisi_rtos::start_with_port(
+        hisi_rtos::PortedConfig {
             minimum_stack_size: NonZeroUsize::new(STACK_SIZE).unwrap(),
-            scheduling: hisi_rtos::SchedulingPolicy::Priority,
-            time_slice: NonZeroU32::new(5),
+            radio_task_policy: hisi_rtos::RunPolicy::Preemptive {
+                time_slice: NonZeroU32::new(5).unwrap(),
+            },
+            max_scheduler_lock_duration: NonZeroU32::new(100).unwrap(),
         },
         hisi_rtos::Resources {
             allocate,
@@ -134,6 +140,7 @@ fn main() -> ! {
             arm_timer: TimerAlarm0::arm_millis,
             disarm_timer: TimerAlarm0::disarm,
             pend_reschedule: SoftwareInterrupt0::pend_interrupt,
+            contract_violation: rtos_contract_violation,
         },
     )
     .unwrap();

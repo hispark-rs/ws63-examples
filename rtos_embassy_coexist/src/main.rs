@@ -50,6 +50,10 @@ fn monotonic_ms() -> u64 {
     Instant::now().raw() / 24_000
 }
 
+fn rtos_contract_violation(_: hisi_rtos::ContractViolation) -> ! {
+    panic!("hisi-rtos scheduler contract violation")
+}
+
 fn write_u32(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mut value: u32) {
     let mut digits = [0_u8; 10];
     let mut len = 0;
@@ -152,11 +156,13 @@ fn main() -> ! {
 
     let _timer = TimerAlarm0::new(p.TIMER);
     let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
-    hisi_rtos::start_with_port(
-        hisi_rtos::Config {
+    let runtime = hisi_rtos::start_with_port(
+        hisi_rtos::PortedConfig {
             minimum_stack_size: NonZeroUsize::new(STACK_SIZE).unwrap(),
-            scheduling: hisi_rtos::SchedulingPolicy::Priority,
-            time_slice: NonZeroU32::new(5),
+            radio_task_policy: hisi_rtos::RunPolicy::Preemptive {
+                time_slice: NonZeroU32::new(5).unwrap(),
+            },
+            max_scheduler_lock_duration: NonZeroU32::new(100).unwrap(),
         },
         hisi_rtos::Resources {
             allocate,
@@ -168,6 +174,7 @@ fn main() -> ! {
             arm_timer: TimerAlarm0::arm_millis,
             disarm_timer: TimerAlarm0::disarm,
             pend_reschedule: SoftwareInterrupt0::pend_interrupt,
+            contract_violation: rtos_contract_violation,
         },
     )
     .unwrap();
@@ -182,7 +189,21 @@ fn main() -> ! {
     )
     .unwrap();
 
+    // The adopted main thread hosts Embassy's executor. It does not call the
+    // RTOS yield API while polling futures, so explicitly opt this thread into
+    // preemption; Config::radio_task_policy applies only to spawned workers.
+    let main_task = hisi_rf_rtos_driver::current_task().unwrap();
+    runtime
+        .set_task_run_policy(
+            main_task,
+            hisi_rtos::RunPolicy::Preemptive {
+                time_slice: NonZeroU32::new(5).unwrap(),
+            },
+        )
+        .unwrap();
+
     unsafe { interrupt::enable_global() };
+    hisi_rtos::request_reschedule();
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner: Spawner| {
         spawner.spawn(embassy_worker().unwrap());
