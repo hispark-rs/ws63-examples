@@ -59,6 +59,11 @@ fn hex8(n: u32) -> [u8; 8] {
     buf
 }
 
+#[cfg(feature = "full-init")]
+fn rtos_contract_violation(_: hisi_rtos::ContractViolation) -> ! {
+    panic!("hisi-rtos scheduler contract violation")
+}
+
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
@@ -118,11 +123,10 @@ fn main() -> ! {
     #[cfg(feature = "full-init")]
     let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
     #[cfg(feature = "full-init")]
-    hisi_rtos::start_with_port(
-        hisi_rtos::Config {
-            scheduling: hisi_rtos::SchedulingPolicy::Priority,
-            time_slice: core::num::NonZeroU32::new(10),
-            ..hisi_rtos::Config::default()
+    let _runtime = hisi_rtos::start_with_port(
+        hisi_rtos::PortedConfig {
+            radio_task_policy: hisi_rtos::RunPolicy::Cooperative,
+            ..hisi_rtos::PortedConfig::default()
         },
         hisi_rtos::Resources {
             allocate: rtos_allocate,
@@ -134,6 +138,7 @@ fn main() -> ! {
             arm_timer: TimerAlarm0::arm_millis,
             disarm_timer: TimerAlarm0::disarm,
             pend_reschedule: SoftwareInterrupt0::pend_interrupt,
+            contract_violation: rtos_contract_violation,
         },
     )
     .expect("start radio runtime");
@@ -251,6 +256,34 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
         rf_log_uart0(&hex8(s1));
         rf_log_uart0(b" s2=0x");
         rf_log_uart0(&hex8(s2));
+    }
+    let mut frees = [ws63_rf_rs::alloc::FreeTraceRecord::default(); 16];
+    let free_count = ws63_rf_rs::alloc::free_trace_snapshot(&mut frees);
+    for record in frees[..free_count]
+        .iter()
+        .filter(|record| record.sequence != 0)
+    {
+        rf_log_uart0(b"\r\nRFDBG_FREE seq=0x");
+        rf_log_uart0(&hex8(record.sequence));
+        rf_log_uart0(b" ptr=0x");
+        rf_log_uart0(&hex8(record.pointer as u32));
+        rf_log_uart0(b" ra=0x");
+        rf_log_uart0(&hex8(record.caller as u32));
+    }
+    let mut allocations = [ws63_rf_rs::alloc::AllocationTraceRecord::default(); 16];
+    let allocation_count = ws63_rf_rs::alloc::allocation_trace_snapshot(&mut allocations);
+    for record in allocations[..allocation_count]
+        .iter()
+        .filter(|record| record.sequence != 0)
+    {
+        rf_log_uart0(b"\r\nRFDBG_ALLOC seq=0x");
+        rf_log_uart0(&hex8(record.sequence));
+        rf_log_uart0(b" ptr=0x");
+        rf_log_uart0(&hex8(record.pointer as u32));
+        rf_log_uart0(b" size=0x");
+        rf_log_uart0(&hex8(record.size as u32));
+        rf_log_uart0(b" ra=0x");
+        rf_log_uart0(&hex8(record.caller as u32));
     }
     rf_log_uart0(b"\r\n");
     loop {
@@ -1043,10 +1076,11 @@ fn write_wifi_error(
                 hisi_rf_rtos_driver::Error::NotInstalled => 1,
                 hisi_rf_rtos_driver::Error::AlreadyInstalled => 2,
                 hisi_rf_rtos_driver::Error::ResourceExhausted => 3,
-                hisi_rf_rtos_driver::Error::InvalidHandle => 4,
-                hisi_rf_rtos_driver::Error::InvalidContext => 5,
-                hisi_rf_rtos_driver::Error::TimedOut => 6,
-                hisi_rf_rtos_driver::Error::Runtime => 7,
+                hisi_rf_rtos_driver::Error::NoTaskSlots => 4,
+                hisi_rf_rtos_driver::Error::InvalidHandle => 5,
+                hisi_rf_rtos_driver::Error::InvalidContext => 6,
+                hisi_rf_rtos_driver::Error::TimedOut => 7,
+                hisi_rf_rtos_driver::Error::Runtime => 8,
             };
             0xffff_ff00 | detail
         }
