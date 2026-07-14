@@ -13,6 +13,8 @@
 
 #[cfg(all(feature = "wpa", feature = "wpa3"))]
 compile_error!("select exactly one station security profile: wpa or wpa3");
+#[cfg(all(feature = "upstream-supplicant", feature = "personal"))]
+compile_error!("upstream-supplicant and the vendor personal profiles are mutually exclusive");
 #[cfg(all(feature = "personal", not(any(feature = "wpa", feature = "wpa3"))))]
 compile_error!("the internal personal feature requires either wpa or wpa3");
 
@@ -33,16 +35,28 @@ use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
 use hisi_riscv_rt::entry;
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 use static_cell::StaticCell;
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 use ws63_rf_rs::hisi_rf_backend::{Ws63RadioState, Ws63WifiBackend};
 #[cfg(feature = "full-init")]
 use ws63_rf_rs::wifi::MAX_SCAN_RESULTS;
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 use ws63_rf_rs::wifi::{Error as WifiError, OpenNetwork, ScanResult, Wifi as ActiveWifi};
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 const TEST_SSID: &[u8] = b"HUAWEI-HLJ";
 #[cfg(feature = "personal")]
 const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
@@ -55,13 +69,25 @@ const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
     None => b"",
 };
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 const RADIO_EVENT_DEPTH: usize = 8;
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 type Ws63RadioRunner = hisi_rf::RadioRunner<Ws63WifiBackend<'static>, RADIO_EVENT_DEPTH>;
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 static RADIO_STATE: Ws63RadioState<RADIO_EVENT_DEPTH> = Ws63RadioState::new();
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 static RADIO_RUNNER: StaticCell<Ws63RadioRunner> = StaticCell::new();
 
 #[cfg(feature = "rf-watchpoint-gate")]
@@ -352,7 +378,10 @@ fn run_wifi_smoke(
     uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'static>,
@@ -431,49 +460,64 @@ fn run_wifi_smoke(
         }
         uart.write(b"\r\n");
     }
-    let Some(result) = results[..scan.count]
-        .iter()
-        .find(|result| result.ssid.as_bytes() == TEST_SSID)
-    else {
-        uart.write(b"RF5B_AP_NOT_FOUND ssid=");
-        uart.write(TEST_SSID);
-        uart.write(b"\r\n");
-        return;
-    };
-    let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
-        uart.write(b"RF5B_WPA_CONFIG_ERR:invalid-passphrase\r\n");
-        return;
-    };
-    #[cfg(feature = "wpa")]
-    let network = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000);
-    #[cfg(feature = "wpa3")]
-    let network =
-        hisi_rf::StationConfig::wpa3_personal(result, passphrase, hisi_rf::SaePwe::Both, 30_000);
-    let Some(network) = network else {
-        uart.write(b"RF5B_WPA_CONFIG_ERR:unsupported-security\r\n");
-        return;
-    };
-    uart.write(b"RF5B_CONNECT_BEGIN ssid=");
-    uart.write(network.ssid.as_bytes());
-    uart.write(b"\r\n");
-    match radio_block_on(wifi.controller.connect(network)) {
-        Ok(info) => {
-            uart.write(b"RF5B_WPA_CONNECT_OK freq=0x");
-            uart.write(&hex8(info.frequency_mhz as u32));
-            uart.write(b"\r\n");
-            #[cfg(feature = "wpa")]
-            uart.write(b"W2_PROFILE_OK mode=wpa2-personal\r\n");
-            #[cfg(feature = "wpa3")]
-            uart.write(b"W2_PROFILE_OK mode=wpa3-personal\r\n");
-            write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
-            network_runner::run(uart, wifi.device);
-        }
-        Err(error) => write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
+    #[cfg(feature = "upstream-supplicant")]
+    {
+        uart.write(b"W2D_NATIVE_RUNNER_RX_READY\r\n");
+        dump_rtos_task_metrics();
     }
-    dump_rtos_task_metrics();
+    #[cfg(feature = "personal")]
+    {
+        let Some(result) = results[..scan.count]
+            .iter()
+            .find(|result| result.ssid.as_bytes() == TEST_SSID)
+        else {
+            uart.write(b"RF5B_AP_NOT_FOUND ssid=");
+            uart.write(TEST_SSID);
+            uart.write(b"\r\n");
+            return;
+        };
+        let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
+            uart.write(b"RF5B_WPA_CONFIG_ERR:invalid-passphrase\r\n");
+            return;
+        };
+        #[cfg(feature = "wpa")]
+        let network = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000);
+        #[cfg(feature = "wpa3")]
+        let network = hisi_rf::StationConfig::wpa3_personal(
+            result,
+            passphrase,
+            hisi_rf::SaePwe::Both,
+            30_000,
+        );
+        let Some(network) = network else {
+            uart.write(b"RF5B_WPA_CONFIG_ERR:unsupported-security\r\n");
+            return;
+        };
+        uart.write(b"RF5B_CONNECT_BEGIN ssid=");
+        uart.write(network.ssid.as_bytes());
+        uart.write(b"\r\n");
+        match radio_block_on(wifi.controller.connect(network)) {
+            Ok(info) => {
+                uart.write(b"RF5B_WPA_CONNECT_OK freq=0x");
+                uart.write(&hex8(info.frequency_mhz as u32));
+                uart.write(b"\r\n");
+                #[cfg(feature = "wpa")]
+                uart.write(b"W2_PROFILE_OK mode=wpa2-personal\r\n");
+                #[cfg(feature = "wpa3")]
+                uart.write(b"W2_PROFILE_OK mode=wpa3-personal\r\n");
+                write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+                network_runner::run(uart, wifi.device);
+            }
+            Err(error) => write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
+        }
+        dump_rtos_task_metrics();
+    }
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 extern "C" fn radio_runner_task(argument: *mut core::ffi::c_void) -> *mut core::ffi::c_void {
     // SAFETY: `argument` comes from `RADIO_RUNNER.init`, remains live forever,
     // and this is the only task that receives its mutable pointer.
@@ -485,7 +529,10 @@ extern "C" fn radio_runner_task(argument: *mut core::ffi::c_void) -> *mut core::
     }
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 fn radio_block_on<F: core::future::Future>(future: F) -> F::Output {
     use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
@@ -509,7 +556,10 @@ fn radio_block_on<F: core::future::Future>(future: F) -> F::Output {
     }
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 fn write_radio_event(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, event: hisi_rf::WifiEvent) {
     uart.write(b"A4_RADIO_EVENT kind=");
     match event {
@@ -522,7 +572,10 @@ fn write_radio_event(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, event: h
     uart.write(b"\r\n");
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 fn write_radio_error(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
@@ -541,7 +594,10 @@ fn write_radio_error(
     uart.write(b"\r\n");
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 const fn radio_error_class_code(class: hisi_rf::BackendErrorClass) -> u32 {
     match class {
         hisi_rf::BackendErrorClass::Initialize => 1,
@@ -553,7 +609,10 @@ const fn radio_error_class_code(class: hisi_rf::BackendErrorClass) -> u32 {
     }
 }
 
-#[cfg(all(feature = "full-init", feature = "personal"))]
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
 const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
     match error {
         hisi_rf_rtos_driver::Error::NotInstalled => 1,
@@ -567,7 +626,10 @@ const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
     }
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'_>,
@@ -1092,7 +1154,10 @@ fn dump_rtos_task_metrics() {
     }
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     let Some(mac) = ws63_rf_rs::netif::hardware_address() else {
         uart.write(b"RF5A_ARP_ERR:no-mac\r\n");
@@ -1207,7 +1272,10 @@ fn run_arp_probe(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
     uart.write(b"\r\n");
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn run_static_arp_diagnostic(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mac: [u8; 6]) {
     const ADDRESS: [u8; 4] = [192, 168, 155, 2];
     const GATEWAY: [u8; 4] = [192, 168, 155, 1];
@@ -1243,7 +1311,10 @@ fn run_static_arp_diagnostic(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, 
     uart.write(b"RFDBG_STATIC_ARP_TIMEOUT\r\n");
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn write_frame_prefix(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
@@ -1260,7 +1331,10 @@ fn write_frame_prefix(
     uart.write(b"\r\n");
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 #[derive(Clone, Copy, Default)]
 struct PingStats {
     tx: u32,
@@ -1276,7 +1350,10 @@ struct PingStats {
     rtt_max_ms: u32,
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn run_ping_series(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     mac: [u8; 6],
@@ -1447,7 +1524,10 @@ fn run_ping_series(
     stats
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn internet_checksum(bytes: &[u8]) -> u16 {
     let mut sum = 0_u32;
     let (chunks, remainder) = bytes.as_chunks::<2>();
@@ -1463,7 +1543,7 @@ fn internet_checksum(bytes: &[u8]) -> u16 {
     !(sum as u16)
 }
 
-#[cfg(feature = "full-init")]
+#[cfg(all(feature = "full-init", not(feature = "upstream-supplicant")))]
 fn write_ipv4(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, address: [u8; 4]) {
     for (index, byte) in address.into_iter().enumerate() {
         if index != 0 {
@@ -1482,7 +1562,10 @@ fn write_ipv4(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, address: [u8; 4
     }
 }
 
-#[cfg(all(feature = "full-init", not(feature = "personal")))]
+#[cfg(all(
+    feature = "full-init",
+    not(any(feature = "personal", feature = "upstream-supplicant"))
+))]
 fn write_wifi_error(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     marker: &[u8],
