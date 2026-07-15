@@ -9,8 +9,8 @@
 
 use core::sync::atomic::{AtomicU32, Ordering};
 use hisi_hal::Peripherals;
-use hisi_hal::software_interrupt::SoftwareInterrupt0;
 use hisi_hal::interrupt;
+use hisi_hal::software_interrupt::SoftwareInterrupt0;
 use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_riscv_rt::entry;
 
