@@ -26,8 +26,8 @@ wpa = ["personal", "full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"
 # Link the W2 WPA3-Personal/SAE candidate. This remains a guarded bring-up
 # feature until pure WPA3 HIL passes on a controlled AP.
 wpa3 = ["personal", "full-init", "ws63-rf-rs/wifi-wpa3-personal", "ws63-radio-sys/wpa3-personal"]
-# Forward vendor Wi-Fi diagnostics to UART0. Keep this opt-in: the vendor log
-# callbacks are synchronous, so enabling them changes scheduler and RF timing.
+# Retain the latest vendor Wi-Fi diagnostics in a fixed ring buffer and flush
+# them to UART0 after the guarded operation. Keep this bring-up aid opt-in.
 rf-vendor-log = ["full-init"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
@@ -46,6 +46,7 @@ name = "wifi_init_smoke"
 path = "src/main.rs"
 
 [dependencies]
+critical-section = "1"
 hisi-rom-sys = { version = "0.1.0-alpha.3", features = ["chip-ws63"] }
 hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstable"] }
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }

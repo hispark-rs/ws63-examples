@@ -11,6 +11,9 @@
 #![no_std]
 #![no_main]
 
+#[cfg(feature = "rf-vendor-log")]
+use core::cell::RefCell;
+
 #[cfg(all(feature = "wpa", feature = "wpa3"))]
 compile_error!("select exactly one station security profile: wpa or wpa3");
 #[cfg(all(feature = "upstream-supplicant", feature = "personal"))]
@@ -139,7 +142,22 @@ fn hex16(n: u64) -> [u8; 16] {
 }
 
 #[cfg(feature = "full-init")]
-fn rtos_contract_violation(_: hisi_rtos::ContractViolation) -> ! {
+fn rtos_contract_violation(violation: hisi_rtos::ContractViolation) -> ! {
+    match violation {
+        hisi_rtos::ContractViolation::SchedulerLockOverrun {
+            task_slot,
+            held_ms,
+            limit_ms,
+        } => {
+            rf_log_uart0(b"RFDBG_RTOS_LOCK_OVERRUN task=0x");
+            rf_log_uart0(&hex8(task_slot as u32));
+            rf_log_uart0(b" held_ms=0x");
+            rf_log_uart0(&hex16(held_ms));
+            rf_log_uart0(b" limit_ms=0x");
+            rf_log_uart0(&hex8(limit_ms));
+            rf_log_uart0(b"\r\n");
+        }
+    }
     panic!("hisi-rtos scheduler contract violation")
 }
 
@@ -196,7 +214,7 @@ fn main() -> ! {
     uart.write(b"RFDBG_BOOT_WDT_DISABLED\r\n");
 
     #[cfg(feature = "rf-vendor-log")]
-    ws63_rf_rs::set_log_sink(rf_log_uart0);
+    ws63_rf_rs::set_log_sink(rf_log_buffered);
     #[cfg(feature = "full-init")]
     let _timer_alarm = TimerAlarm0::new(p.TIMER);
     #[cfg(feature = "full-init")]
@@ -286,6 +304,145 @@ fn rf_log_uart0(bytes: &[u8]) {
                 core::hint::spin_loop();
             }
         }
+    }
+}
+
+#[cfg(feature = "rf-vendor-log")]
+const VENDOR_LOG_CAPACITY: usize = 16 * 1024;
+
+#[cfg(feature = "rf-vendor-log")]
+struct VendorLogBuffer {
+    bytes: [u8; VENDOR_LOG_CAPACITY],
+    start: usize,
+    len: usize,
+    dropped: usize,
+}
+
+#[cfg(feature = "rf-vendor-log")]
+impl VendorLogBuffer {
+    const fn new() -> Self {
+        Self {
+            bytes: [0; VENDOR_LOG_CAPACITY],
+            start: 0,
+            len: 0,
+            dropped: 0,
+        }
+    }
+
+    fn push(&mut self, bytes: &[u8]) {
+        let bytes = if bytes.len() >= VENDOR_LOG_CAPACITY {
+            self.dropped = self
+                .dropped
+                .saturating_add(self.len)
+                .saturating_add(bytes.len() - VENDOR_LOG_CAPACITY);
+            self.start = 0;
+            self.len = 0;
+            &bytes[bytes.len() - VENDOR_LOG_CAPACITY..]
+        } else {
+            bytes
+        };
+        let overflow = self
+            .len
+            .saturating_add(bytes.len())
+            .saturating_sub(VENDOR_LOG_CAPACITY);
+        if overflow != 0 {
+            self.start = (self.start + overflow) % VENDOR_LOG_CAPACITY;
+            self.len -= overflow;
+            self.dropped = self.dropped.saturating_add(overflow);
+        }
+        let end = (self.start + self.len) % VENDOR_LOG_CAPACITY;
+        let first = bytes.len().min(VENDOR_LOG_CAPACITY - end);
+        self.bytes[end..end + first].copy_from_slice(&bytes[..first]);
+        self.bytes[..bytes.len() - first].copy_from_slice(&bytes[first..]);
+        self.len += bytes.len();
+    }
+
+    fn copy_from(&self, offset: usize, output: &mut [u8]) -> usize {
+        let count = (self.len - offset).min(output.len());
+        let source = (self.start + offset) % VENDOR_LOG_CAPACITY;
+        let first = count.min(VENDOR_LOG_CAPACITY - source);
+        output[..first].copy_from_slice(&self.bytes[source..source + first]);
+        output[first..count].copy_from_slice(&self.bytes[..count - first]);
+        count
+    }
+}
+
+#[cfg(feature = "rf-vendor-log")]
+static VENDOR_LOG: critical_section::Mutex<RefCell<VendorLogBuffer>> =
+    critical_section::Mutex::new(RefCell::new(VendorLogBuffer::new()));
+
+#[cfg(feature = "rf-vendor-log")]
+fn rf_log_buffered(bytes: &[u8]) {
+    critical_section::with(|cs| VENDOR_LOG.borrow(cs).borrow_mut().push(bytes));
+}
+
+#[cfg(feature = "rf-vendor-log")]
+fn rf_log_drop(_: &[u8]) {}
+
+#[cfg(feature = "rf-vendor-log")]
+fn flush_vendor_log(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    // Stop producers before reading the fixed buffer. Vendor callbacks can run
+    // from several worker contexts, so streaming directly to a 115200-baud UART
+    // would extend scheduler-lock regions and change the behavior being traced.
+    ws63_rf_rs::set_log_sink(rf_log_drop);
+    uart.write(b"RFDBG_VENDOR_LOG_BEGIN\r\n");
+    let mut offset = 0;
+    let mut chunk = [0_u8; 128];
+    loop {
+        let (count, dropped) = critical_section::with(|cs| {
+            let log = VENDOR_LOG.borrow(cs).borrow();
+            let count = log.copy_from(offset, &mut chunk);
+            (count, log.dropped)
+        });
+        if count == 0 {
+            uart.write(b"\r\nRFDBG_VENDOR_LOG_END dropped=0x");
+            uart.write(&hex8(dropped.min(u32::MAX as usize) as u32));
+            uart.write(b"\r\n");
+            break;
+        }
+        uart.write(&chunk[..count]);
+        offset += count;
+    }
+}
+
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
+struct VendorLogGuard<'a, 'd> {
+    _uart: &'a Uart<'d, hisi_hal::peripherals::Uart0<'d>>,
+    flushed: bool,
+}
+
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
+impl<'a, 'd> VendorLogGuard<'a, 'd> {
+    fn new(uart: &'a Uart<'d, hisi_hal::peripherals::Uart0<'d>>) -> Self {
+        Self {
+            _uart: uart,
+            flushed: false,
+        }
+    }
+
+    fn flush(&mut self) {
+        if self.flushed {
+            return;
+        }
+        #[cfg(feature = "rf-vendor-log")]
+        flush_vendor_log(self._uart);
+        self.flushed = true;
+    }
+}
+
+#[cfg(all(
+    feature = "full-init",
+    any(feature = "personal", feature = "upstream-supplicant")
+))]
+impl Drop for VendorLogGuard<'_, '_> {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
 
@@ -399,6 +556,7 @@ fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'static>,
 ) {
+    let mut vendor_log = VendorLogGuard::new(uart);
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let radio = match hisi_rf::init(
         ws63_rf_rs::hisi_rf_backend::config(),
@@ -533,6 +691,7 @@ fn run_wifi_smoke(
                 uart.write(&hex8(info.frequency_mhz as u32));
                 uart.write(b"\r\n");
                 write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+                vendor_log.flush();
                 network_runner::run(uart, wifi.device);
             }
             Err(error) => {
@@ -540,6 +699,8 @@ fn run_wifi_smoke(
                 write_radio_error(uart, b"W2D_WPA2_CONNECT_ERR", error);
                 #[cfg(feature = "upstream-wpa3")]
                 write_radio_error(uart, b"W2E_WPA3_CONNECT_ERR", error);
+                #[cfg(feature = "upstream-supplicant")]
+                write_upstream_supplicant_diagnostics(uart);
             }
         }
         dump_rtos_task_metrics();
@@ -585,12 +746,46 @@ fn run_wifi_smoke(
                 #[cfg(feature = "wpa3")]
                 uart.write(b"W2_PROFILE_OK mode=wpa3-personal\r\n");
                 write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
+                vendor_log.flush();
                 network_runner::run(uart, wifi.device);
             }
-            Err(error) => write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error),
+            Err(error) => {
+                write_radio_error(uart, b"RF5B_WPA_CONNECT_ERR", error);
+            }
         }
         dump_rtos_task_metrics();
     }
+}
+
+#[cfg(all(feature = "full-init", feature = "upstream-supplicant"))]
+fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    let [
+        flags_status,
+        flags_lo,
+        flags_hi,
+        assoc_status,
+        auth,
+        pmf,
+        pwe,
+        akm,
+    ] = ws63_rf_rs::upstream_supplicant_diagnostic_snapshot();
+    uart.write(b"RFDBG_WPA_DRIVER_FLAGS status=0x");
+    uart.write(&hex8(flags_status));
+    uart.write(b" lo=0x");
+    uart.write(&hex8(flags_lo));
+    uart.write(b" hi=0x");
+    uart.write(&hex8(flags_hi));
+    uart.write(b"\r\nRFDBG_WPA_ASSOC_SUBMIT status=0x");
+    uart.write(&hex8(assoc_status));
+    uart.write(b" auth=0x");
+    uart.write(&hex8(auth));
+    uart.write(b" pmf=0x");
+    uart.write(&hex8(pmf));
+    uart.write(b" pwe=0x");
+    uart.write(&hex8(pwe));
+    uart.write(b" akm=0x");
+    uart.write(&hex8(akm));
+    uart.write(b"\r\n");
 }
 
 #[cfg(all(
@@ -1695,6 +1890,7 @@ fn write_wifi_error(
         WifiError::OpenNetwork => 6,
         WifiError::UnsupportedSecurity(mode) => mode as u32,
         WifiError::InvalidPassphrase => 7,
+        WifiError::CryptoInitialize(code) => code as u32,
         WifiError::Crypto(code) => code,
         WifiError::ScanFailed(status) => match status {
             ws63_rf_rs::wifi::ScanStatus::Success => 0,
