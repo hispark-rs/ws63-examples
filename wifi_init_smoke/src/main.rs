@@ -768,6 +768,9 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
         pmf,
         pwe,
         akm,
+        external_auth_callbacks,
+        external_auth_rejects,
+        external_auth_length,
     ] = ws63_rf_rs::upstream_supplicant_diagnostic_snapshot();
     uart.write(b"RFDBG_WPA_DRIVER_FLAGS status=0x");
     uart.write(&hex8(flags_status));
@@ -785,6 +788,12 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8(pwe));
     uart.write(b" akm=0x");
     uart.write(&hex8(akm));
+    uart.write(b"\r\nRFDBG_WPA_EXTERNAL_AUTH callbacks=0x");
+    uart.write(&hex8(external_auth_callbacks));
+    uart.write(b" rejects=0x");
+    uart.write(&hex8(external_auth_rejects));
+    uart.write(b" length=0x");
+    uart.write(&hex8(external_auth_length));
     uart.write(b"\r\n");
 }
 
