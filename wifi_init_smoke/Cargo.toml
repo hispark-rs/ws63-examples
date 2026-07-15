@@ -16,6 +16,9 @@ full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
 # driver path. This intentionally excludes the legacy WPA archives; W2 adds
 # RX/event/context gates before this becomes the default protected-network path.
 upstream-supplicant = ["full-init", "ws63-rf-rs/upstream-supplicant-port"]
+# Extend the upstream-native source profile with SAE/PMF. Unlike `wpa3`, this
+# does not link the legacy vendor supplicant or mbedTLS archives.
+upstream-wpa3 = ["upstream-supplicant", "ws63-rf-rs/upstream-supplicant-wpa3"]
 # Shared internal station path selected by the concrete WPA2 or WPA3 profile.
 personal = []
 # Run the protected-network smoke through the vendor WPA supplicant.

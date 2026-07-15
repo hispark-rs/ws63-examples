@@ -486,12 +486,39 @@ fn run_wifi_smoke(
             return;
         };
         let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
+            #[cfg(not(feature = "upstream-wpa3"))]
             uart.write(b"W2D_WPA_CONFIG_ERR:invalid-passphrase\r\n");
+            #[cfg(feature = "upstream-wpa3")]
+            uart.write(b"W2E_WPA3_CONFIG_ERR:invalid-passphrase\r\n");
             return;
         };
-        let Some(network) = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000)
-        else {
+        #[cfg(feature = "upstream-wpa3")]
+        match result.security {
+            hisi_rf::Security::Wpa3Personal => {
+                uart.write(b"W2E_AP_SECURITY mode=pure-wpa3\r\n");
+            }
+            hisi_rf::Security::Wpa2Wpa3PersonalTransition => {
+                uart.write(b"W2E_AP_SECURITY mode=transition\r\n");
+            }
+            _ => {
+                uart.write(b"W2E_WPA3_CONFIG_ERR:scan-security\r\n");
+                return;
+            }
+        }
+        #[cfg(not(feature = "upstream-wpa3"))]
+        let network = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000);
+        #[cfg(feature = "upstream-wpa3")]
+        let network = hisi_rf::StationConfig::wpa3_personal(
+            result,
+            passphrase,
+            hisi_rf::SaePwe::Both,
+            30_000,
+        );
+        let Some(network) = network else {
+            #[cfg(not(feature = "upstream-wpa3"))]
             uart.write(b"W2D_WPA_CONFIG_ERR:unsupported-security\r\n");
+            #[cfg(feature = "upstream-wpa3")]
+            uart.write(b"W2E_WPA3_CONFIG_ERR:unsupported-security\r\n");
             return;
         };
         uart.write(b"W2D_CONNECT_BEGIN ssid=");
@@ -499,13 +526,21 @@ fn run_wifi_smoke(
         uart.write(b"\r\n");
         match radio_block_on(wifi.controller.connect(network)) {
             Ok(info) => {
+                #[cfg(not(feature = "upstream-wpa3"))]
                 uart.write(b"W2D_WPA2_CONNECT_OK freq=0x");
+                #[cfg(feature = "upstream-wpa3")]
+                uart.write(b"W2E_WPA3_CONNECT_OK pmf=required freq=0x");
                 uart.write(&hex8(info.frequency_mhz as u32));
                 uart.write(b"\r\n");
                 write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
                 network_runner::run(uart, wifi.device);
             }
-            Err(error) => write_radio_error(uart, b"W2D_WPA2_CONNECT_ERR", error),
+            Err(error) => {
+                #[cfg(not(feature = "upstream-wpa3"))]
+                write_radio_error(uart, b"W2D_WPA2_CONNECT_ERR", error);
+                #[cfg(feature = "upstream-wpa3")]
+                write_radio_error(uart, b"W2E_WPA3_CONNECT_ERR", error);
+            }
         }
         dump_rtos_task_metrics();
     }
