@@ -690,6 +690,8 @@ fn run_wifi_smoke(
                 uart.write(b"W2E_WPA3_CONNECT_OK pmf=required freq=0x");
                 uart.write(&hex8(info.frequency_mhz as u32));
                 uart.write(b"\r\n");
+                #[cfg(feature = "upstream-supplicant")]
+                write_upstream_supplicant_diagnostics(uart);
                 write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
                 vendor_log.flush();
                 network_runner::run(uart, wifi.device);
@@ -794,6 +796,145 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8(external_auth_rejects));
     uart.write(b" length=0x");
     uart.write(&hex8(external_auth_length));
+    let [
+        tx_count,
+        tx_frequency,
+        tx_length,
+        tx_algorithm,
+        tx_transaction,
+        tx_status,
+        rx_count,
+        rx_frequency,
+        rx_length,
+        rx_algorithm,
+        rx_transaction,
+        rx_status,
+    ] = ws63_rf_rs::upstream_supplicant_authentication_diagnostic_snapshot();
+    uart.write(b"\r\nRFDBG_WPA_AUTH_TX count=0x");
+    uart.write(&hex8(tx_count));
+    uart.write(b" freq=0x");
+    uart.write(&hex8(tx_frequency));
+    uart.write(b" len=0x");
+    uart.write(&hex8(tx_length));
+    uart.write(b" alg=0x");
+    uart.write(&hex8(tx_algorithm));
+    uart.write(b" transaction=0x");
+    uart.write(&hex8(tx_transaction));
+    uart.write(b" status=0x");
+    uart.write(&hex8(tx_status));
+    uart.write(b"\r\nRFDBG_WPA_AUTH_RX count=0x");
+    uart.write(&hex8(rx_count));
+    uart.write(b" freq=0x");
+    uart.write(&hex8(rx_frequency));
+    uart.write(b" len=0x");
+    uart.write(&hex8(rx_length));
+    uart.write(b" alg=0x");
+    uart.write(&hex8(rx_algorithm));
+    uart.write(b" transaction=0x");
+    uart.write(&hex8(rx_transaction));
+    uart.write(b" status=0x");
+    uart.write(&hex8(rx_status));
+    let [
+        start_sequence,
+        start_ms,
+        tx_sequence,
+        tx_ms,
+        rx_sequence,
+        rx_ms,
+        status_sequence,
+        status_ms,
+        association_sequence,
+        association_ms,
+    ] = ws63_rf_rs::upstream_supplicant_authentication_progress_snapshot();
+    uart.write(b"\r\nRFDBG_WPA_AUTH_PROGRESS start_seq=0x");
+    uart.write(&hex8(start_sequence));
+    uart.write(b" start_ms=0x");
+    uart.write(&hex8(start_ms));
+    uart.write(b" tx_seq=0x");
+    uart.write(&hex8(tx_sequence));
+    uart.write(b" tx_ms=0x");
+    uart.write(&hex8(tx_ms));
+    uart.write(b" rx_seq=0x");
+    uart.write(&hex8(rx_sequence));
+    uart.write(b" rx_ms=0x");
+    uart.write(&hex8(rx_ms));
+    uart.write(b" status_seq=0x");
+    uart.write(&hex8(status_sequence));
+    uart.write(b" status_ms=0x");
+    uart.write(&hex8(status_ms));
+    uart.write(b" assoc_seq=0x");
+    uart.write(&hex8(association_sequence));
+    uart.write(b" assoc_ms=0x");
+    uart.write(&hex8(association_ms));
+    let [
+        notifications,
+        receive_polls,
+        received,
+        fed,
+        sent,
+        key_attempts,
+    ] = ws63_rf_rs::upstream_supplicant_eapol_diagnostic_snapshot();
+    uart.write(b"\r\nRFDBG_WPA_EAPOL notifications=0x");
+    uart.write(&hex8(notifications));
+    uart.write(b" receive_polls=0x");
+    uart.write(&hex8(receive_polls));
+    uart.write(b" received=0x");
+    uart.write(&hex8(received));
+    uart.write(b" fed=0x");
+    uart.write(&hex8(fed));
+    uart.write(b" sent=0x");
+    uart.write(&hex8(sent));
+    uart.write(b" key_attempts=0x");
+    uart.write(&hex8(key_attempts));
+    let [
+        ring,
+        event_kind,
+        event_status,
+        assoc_raw,
+        assoc_status,
+        assoc_response_ie_len,
+    ] = ws63_rf_rs::upstream_supplicant_event_diagnostic_snapshot();
+    uart.write(b"\r\nRFDBG_WPA_EVENT_RING current=0x");
+    uart.write(&hex8(ring & 0xff));
+    uart.write(b" max=0x");
+    uart.write(&hex8((ring >> 8) & 0xff));
+    uart.write(b" dropped=0x");
+    uart.write(&hex8(ring >> 16));
+    uart.write(b" last_kind=0x");
+    uart.write(&hex8(event_kind));
+    uart.write(b" last_status=0x");
+    uart.write(&hex8(event_status));
+    uart.write(b" assoc_raw=0x");
+    uart.write(&hex8(assoc_raw));
+    uart.write(b" assoc_status=0x");
+    uart.write(&hex8(assoc_status));
+    uart.write(b" assoc_resp_ie_len=0x");
+    uart.write(&hex8(assoc_response_ie_len));
+    uart.write(b"\r\n");
+    #[cfg(feature = "rf-eloop-diag")]
+    write_netif_rx_diagnostics(uart);
+}
+
+#[cfg(all(feature = "full-init", feature = "rf-eloop-diag"))]
+fn write_netif_rx_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    let auth = ws63_rf_rs::eloop_diag::auth();
+    uart.write(b"RFDBG_NETIF_RX calls=0x");
+    uart.write(&hex8(auth.netif_rx_calls));
+    uart.write(b" eapol=0x");
+    uart.write(&hex8(auth.netif_rx_eapol_frames));
+    uart.write(b" len=0x");
+    uart.write(&hex8(auth.netif_rx_length));
+    uart.write(b" bytes=");
+    for byte in auth.netif_rx_prefix {
+        uart.write(&hex8(byte as u32)[6..]);
+    }
+    uart.write(b"\r\n");
+    uart.write(b"RFDBG_NETIF_RX_EAPOL len=0x");
+    uart.write(&hex8(auth.netif_rx_eapol_length));
+    uart.write(b" bytes=");
+    for byte in auth.netif_rx_eapol_prefix {
+        uart.write(&hex8(byte as u32)[6..]);
+    }
     uart.write(b"\r\n");
 }
 
@@ -1276,15 +1417,7 @@ fn run_wifi_smoke(
         uart.write(b" skb=0x");
         uart.write(&hex8(auth.bridge_xmit_skb as u32));
         uart.write(b"\r\n");
-        uart.write(b"RFDBG_NETIF_RX calls=0x");
-        uart.write(&hex8(auth.netif_rx_calls));
-        uart.write(b" len=0x");
-        uart.write(&hex8(auth.netif_rx_length));
-        uart.write(b" bytes=");
-        for byte in auth.netif_rx_prefix {
-            uart.write(&hex8(byte as u32)[6..]);
-        }
-        uart.write(b"\r\n");
+        write_netif_rx_diagnostics(uart);
         uart.write(b"RFDBG_TX_COMPLETE_FRAME=");
         for byte in auth.tx_complete_frame_prefix {
             uart.write(&hex8(byte as u32)[6..]);
