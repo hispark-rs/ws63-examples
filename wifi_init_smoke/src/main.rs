@@ -252,7 +252,7 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart, efuse, p.KM, p.SPACC, p.TRNG);
+    run_wifi_smoke(&uart, efuse, p.KM, p.SPACC, p.PKE, p.TRNG);
 
     loop {
         core::hint::spin_loop();
@@ -545,6 +545,7 @@ fn run_wifi_smoke(
     _efuse: hisi_hal::peripherals::Efuse<'_>,
     _km: hisi_hal::peripherals::Km<'_>,
     _spacc: hisi_hal::peripherals::Spacc<'_>,
+    _pke: hisi_hal::peripherals::Pke<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
@@ -560,13 +561,14 @@ fn run_wifi_smoke(
     efuse: hisi_hal::peripherals::Efuse<'static>,
     km: hisi_hal::peripherals::Km<'static>,
     spacc: hisi_hal::peripherals::Spacc<'static>,
+    pke: hisi_hal::peripherals::Pke<'static>,
     trng: hisi_hal::peripherals::Trng<'static>,
 ) {
     let mut vendor_log = VendorLogGuard::new(uart);
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let radio = match hisi_rf::init(
         ws63_rf_rs::hisi_rf_backend::config(),
-        ws63_rf_rs::hisi_rf_backend::resources(efuse, km, spacc, trng),
+        ws63_rf_rs::hisi_rf_backend::resources(efuse, km, spacc, pke, trng),
         &RADIO_STATE,
     ) {
         Ok(radio) => radio,
@@ -1029,6 +1031,16 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" recovery_failures=0x");
     uart.write(&hex8(recovery_failures));
     uart.write(b"\r\n");
+    let [requests, failures, total_ms, max_ms] = ws63_rf_rs::hardware_p256_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_P256 requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(max_ms));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
@@ -1179,6 +1191,7 @@ fn run_wifi_smoke(
     efuse: hisi_hal::peripherals::Efuse<'_>,
     _km: hisi_hal::peripherals::Km<'_>,
     _spacc: hisi_hal::peripherals::Spacc<'_>,
+    _pke: hisi_hal::peripherals::Pke<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
