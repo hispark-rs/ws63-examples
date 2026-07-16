@@ -952,6 +952,17 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8((recovery >> 20) & 0x0f));
     uart.write(b" pending=0x");
     uart.write(&hex8((recovery >> 24) & 1));
+    let [
+        temporary_reject_clears,
+        temporary_reject_clear_failures,
+        clear_status,
+    ] = ws63_rf_rs::upstream_supplicant_temporary_reject_recovery_diagnostic_snapshot();
+    uart.write(b"\r\nRFDBG_WPA_TEMP_REJECT_RECOVERY clears=0x");
+    uart.write(&hex8(temporary_reject_clears));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(temporary_reject_clear_failures));
+    uart.write(b" last_status=0x");
+    uart.write(&hex8(clear_status));
     let mut attempts = [ws63_rf_rs::AssociationAttemptDiagnostic::default(); 8];
     let attempt_count =
         ws63_rf_rs::upstream_supplicant_association_attempt_diagnostics(&mut attempts);
