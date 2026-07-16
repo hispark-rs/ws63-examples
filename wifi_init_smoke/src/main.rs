@@ -252,7 +252,7 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart, efuse);
+    run_wifi_smoke(&uart, efuse, p.TRNG);
 
     loop {
         core::hint::spin_loop();
@@ -543,6 +543,7 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     _efuse: hisi_hal::peripherals::Efuse<'_>,
+    _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
     uart.write(b"RF2_INIT_SKIPPED:full-init feature disabled\r\n");
@@ -555,12 +556,13 @@ fn run_wifi_smoke(
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'static>,
+    trng: hisi_hal::peripherals::Trng<'static>,
 ) {
     let mut vendor_log = VendorLogGuard::new(uart);
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let radio = match hisi_rf::init(
         ws63_rf_rs::hisi_rf_backend::config(),
-        ws63_rf_rs::hisi_rf_backend::resources(efuse),
+        ws63_rf_rs::hisi_rf_backend::resources(efuse, trng),
         &RADIO_STATE,
     ) {
         Ok(radio) => radio,
@@ -620,7 +622,10 @@ fn run_wifi_smoke(
     write_radio_event(uart, radio_block_on(wifi.controller.next_event()));
     for result in &results[..scan.count] {
         uart.write(b"RF3_AP ssid=");
+        #[cfg(not(feature = "upstream-wpa3"))]
         uart.write(result.ssid.as_bytes());
+        #[cfg(feature = "upstream-wpa3")]
+        uart.write(b"<redacted>");
         uart.write(b" freq=0x");
         uart.write(&hex8(result.frequency_mhz as u32));
         uart.write(b" rssi=0x");
@@ -638,9 +643,14 @@ fn run_wifi_smoke(
             .iter()
             .find(|result| result.ssid.as_bytes() == TEST_SSID)
         else {
-            uart.write(b"W2D_AP_NOT_FOUND ssid=");
-            uart.write(TEST_SSID);
-            uart.write(b"\r\n");
+            #[cfg(not(feature = "upstream-wpa3"))]
+            {
+                uart.write(b"W2D_AP_NOT_FOUND ssid=");
+                uart.write(TEST_SSID);
+                uart.write(b"\r\n");
+            }
+            #[cfg(feature = "upstream-wpa3")]
+            uart.write(b"W2E_AP_NOT_FOUND ssid=<redacted>\r\n");
             return;
         };
         let Some(passphrase) = hisi_rf::Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
@@ -679,9 +689,14 @@ fn run_wifi_smoke(
             uart.write(b"W2E_WPA3_CONFIG_ERR:unsupported-security\r\n");
             return;
         };
-        uart.write(b"W2D_CONNECT_BEGIN ssid=");
-        uart.write(network.ssid.as_bytes());
-        uart.write(b"\r\n");
+        #[cfg(not(feature = "upstream-wpa3"))]
+        {
+            uart.write(b"W2D_CONNECT_BEGIN ssid=");
+            uart.write(network.ssid.as_bytes());
+            uart.write(b"\r\n");
+        }
+        #[cfg(feature = "upstream-wpa3")]
+        uart.write(b"W2E_CONNECT_BEGIN ssid=<redacted>\r\n");
         match radio_block_on(wifi.controller.connect(network)) {
             Ok(info) => {
                 #[cfg(not(feature = "upstream-wpa3"))]
@@ -873,6 +888,8 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
         fed,
         sent,
         key_attempts,
+        fallback_polls,
+        fallback_hits,
     ] = ws63_rf_rs::upstream_supplicant_eapol_diagnostic_snapshot();
     uart.write(b"\r\nRFDBG_WPA_EAPOL notifications=0x");
     uart.write(&hex8(notifications));
@@ -886,6 +903,10 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8(sent));
     uart.write(b" key_attempts=0x");
     uart.write(&hex8(key_attempts));
+    uart.write(b" fallback_polls=0x");
+    uart.write(&hex8(fallback_polls));
+    uart.write(b" fallback_hits=0x");
+    uart.write(&hex8(fallback_hits));
     let [
         ring,
         event_kind,
@@ -910,6 +931,32 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8(assoc_status));
     uart.write(b" assoc_resp_ie_len=0x");
     uart.write(&hex8(assoc_response_ie_len));
+    let mut attempts = [ws63_rf_rs::AssociationAttemptDiagnostic::default(); 8];
+    let attempt_count =
+        ws63_rf_rs::upstream_supplicant_association_attempt_diagnostics(&mut attempts);
+    for attempt in &attempts[..attempt_count] {
+        uart.write(b"\r\nRFDBG_WPA_ASSOC_ATTEMPT seq=0x");
+        uart.write(&hex8(attempt.sequence));
+        uart.write(b" ms=0x");
+        uart.write(&hex8(attempt.timestamp_ms));
+        uart.write(b" raw=0x");
+        uart.write(&hex8(attempt.raw_status));
+        uart.write(b" status=0x");
+        uart.write(&hex8(attempt.status));
+        uart.write(b" resp_ie_len=0x");
+        uart.write(&hex8(attempt.response_ie_len));
+        uart.write(b" comeback_tu=0x");
+        uart.write(&hex8(attempt.comeback_tu));
+    }
+    let [installed, requests, bytes, failures] = ws63_rf_rs::hardware_entropy_diagnostic_snapshot();
+    uart.write(b"\r\nRFDBG_HW_TRNG installed=0x");
+    uart.write(&hex8(installed));
+    uart.write(b" requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" bytes=0x");
+    uart.write(&hex8(bytes));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
     uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
@@ -1059,6 +1106,7 @@ const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'_>,
+    _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let mut wifi = match ActiveWifi::initialize(efuse) {
