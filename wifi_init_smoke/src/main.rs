@@ -1117,6 +1117,39 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" pow_failures=0x");
     uart.write(&hex8(pow_failures));
     uart.write(b"\r\n");
+    let [
+        requests,
+        failures,
+        total_ms,
+        max_ms,
+        invert_requests,
+        validate_requests,
+        y2_requests,
+        invert_failures,
+        validate_failures,
+        y2_failures,
+    ] = ws63_rf_rs::hardware_p256_curve_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_P256_CURVE requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(max_ms));
+    uart.write(b" invert_requests=0x");
+    uart.write(&hex8(invert_requests));
+    uart.write(b" validate_requests=0x");
+    uart.write(&hex8(validate_requests));
+    uart.write(b" y2_requests=0x");
+    uart.write(&hex8(y2_requests));
+    uart.write(b" invert_failures=0x");
+    uart.write(&hex8(invert_failures));
+    uart.write(b" validate_failures=0x");
+    uart.write(&hex8(validate_failures));
+    uart.write(b" y2_failures=0x");
+    uart.write(&hex8(y2_failures));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
