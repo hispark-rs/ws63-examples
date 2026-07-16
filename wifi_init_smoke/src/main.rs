@@ -252,7 +252,7 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart, efuse, p.KM, p.TRNG);
+    run_wifi_smoke(&uart, efuse, p.KM, p.SPACC, p.TRNG);
 
     loop {
         core::hint::spin_loop();
@@ -544,6 +544,7 @@ fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     _efuse: hisi_hal::peripherals::Efuse<'_>,
     _km: hisi_hal::peripherals::Km<'_>,
+    _spacc: hisi_hal::peripherals::Spacc<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
@@ -558,13 +559,14 @@ fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'static>,
     km: hisi_hal::peripherals::Km<'static>,
+    spacc: hisi_hal::peripherals::Spacc<'static>,
     trng: hisi_hal::peripherals::Trng<'static>,
 ) {
     let mut vendor_log = VendorLogGuard::new(uart);
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let radio = match hisi_rf::init(
         ws63_rf_rs::hisi_rf_backend::config(),
-        ws63_rf_rs::hisi_rf_backend::resources(efuse, km, trng),
+        ws63_rf_rs::hisi_rf_backend::resources(efuse, km, spacc, trng),
         &RADIO_STATE,
     ) {
         Ok(radio) => radio,
@@ -973,6 +975,39 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" max_ms=0x");
     uart.write(&hex8(max_ms));
     uart.write(b"\r\n");
+    let [
+        hash_requests,
+        hash_failures,
+        hash_total_ms,
+        hash_max_ms,
+        mac_requests,
+        mac_failures,
+        mac_total_ms,
+        mac_max_ms,
+        recovery_tests,
+        recovery_failures,
+    ] = ws63_rf_rs::hardware_hash_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_HASH requests=0x");
+    uart.write(&hex8(hash_requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(hash_failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(hash_total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(hash_max_ms));
+    uart.write(b" mac_requests=0x");
+    uart.write(&hex8(mac_requests));
+    uart.write(b" mac_failures=0x");
+    uart.write(&hex8(mac_failures));
+    uart.write(b" mac_total_ms=0x");
+    uart.write(&hex8(mac_total_ms));
+    uart.write(b" mac_max_ms=0x");
+    uart.write(&hex8(mac_max_ms));
+    uart.write(b" recovery_tests=0x");
+    uart.write(&hex8(recovery_tests));
+    uart.write(b" recovery_failures=0x");
+    uart.write(&hex8(recovery_failures));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
@@ -1122,6 +1157,7 @@ fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'_>,
     _km: hisi_hal::peripherals::Km<'_>,
+    _spacc: hisi_hal::peripherals::Spacc<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
