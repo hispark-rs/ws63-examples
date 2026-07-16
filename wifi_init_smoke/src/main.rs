@@ -252,7 +252,7 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
 
     uart.write(b"\r\nRF1_IMAGE_OK\r\n");
-    run_wifi_smoke(&uart, efuse, p.TRNG);
+    run_wifi_smoke(&uart, efuse, p.KM, p.TRNG);
 
     loop {
         core::hint::spin_loop();
@@ -543,6 +543,7 @@ extern "C" fn __ws63_rf_exception_diag(frame: *const u32) -> ! {
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     _efuse: hisi_hal::peripherals::Efuse<'_>,
+    _km: hisi_hal::peripherals::Km<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
@@ -556,13 +557,14 @@ fn run_wifi_smoke(
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'static>,
+    km: hisi_hal::peripherals::Km<'static>,
     trng: hisi_hal::peripherals::Trng<'static>,
 ) {
     let mut vendor_log = VendorLogGuard::new(uart);
     uart.write(b"RF2_INIT_BEGIN\r\n");
     let radio = match hisi_rf::init(
         ws63_rf_rs::hisi_rf_backend::config(),
-        ws63_rf_rs::hisi_rf_backend::resources(efuse, trng),
+        ws63_rf_rs::hisi_rf_backend::resources(efuse, km, trng),
         &RADIO_STATE,
     ) {
         Ok(radio) => radio,
@@ -958,6 +960,19 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" failures=0x");
     uart.write(&hex8(failures));
     uart.write(b"\r\n");
+    let [installed, requests, failures, total_ms, max_ms] =
+        ws63_rf_rs::hardware_pbkdf2_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_PBKDF2 installed=0x");
+    uart.write(&hex8(installed));
+    uart.write(b" requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(max_ms));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
@@ -1106,6 +1121,7 @@ const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
 fn run_wifi_smoke(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
     efuse: hisi_hal::peripherals::Efuse<'_>,
+    _km: hisi_hal::peripherals::Km<'_>,
     _trng: hisi_hal::peripherals::Trng<'_>,
 ) {
     uart.write(b"RF2_INIT_BEGIN\r\n");
