@@ -937,6 +937,21 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(&hex8(assoc_status));
     uart.write(b" assoc_resp_ie_len=0x");
     uart.write(&hex8(assoc_response_ie_len));
+    let recovery = ws63_rf_rs::upstream_supplicant_recovery_diagnostic_word();
+    uart.write(b"\r\nRFDBG_WPA_RECOVERY timeouts=0x");
+    uart.write(&hex8(recovery & 0x0f));
+    uart.write(b" disconnect_events=0x");
+    uart.write(&hex8((recovery >> 4) & 0x0f));
+    uart.write(b" fallbacks=0x");
+    uart.write(&hex8((recovery >> 8) & 0x0f));
+    uart.write(b" local_disconnects=0x");
+    uart.write(&hex8((recovery >> 12) & 0x0f));
+    uart.write(b" cached_retries=0x");
+    uart.write(&hex8((recovery >> 16) & 0x0f));
+    uart.write(b" scan_retries=0x");
+    uart.write(&hex8((recovery >> 20) & 0x0f));
+    uart.write(b" pending=0x");
+    uart.write(&hex8((recovery >> 24) & 1));
     let mut attempts = [ws63_rf_rs::AssociationAttemptDiagnostic::default(); 8];
     let attempt_count =
         ws63_rf_rs::upstream_supplicant_association_attempt_diagnostics(&mut attempts);
