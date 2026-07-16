@@ -1084,6 +1084,33 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" add_max_ms=0x");
     uart.write(&hex8(add_max_ms));
     uart.write(b"\r\n");
+    let [
+        requests,
+        failures,
+        total_ms,
+        max_ms,
+        mul_requests,
+        square_requests,
+        mul_failures,
+        square_failures,
+    ] = ws63_rf_rs::hardware_p256_field_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_P256_FIELD requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(max_ms));
+    uart.write(b" mul_requests=0x");
+    uart.write(&hex8(mul_requests));
+    uart.write(b" square_requests=0x");
+    uart.write(&hex8(square_requests));
+    uart.write(b" mul_failures=0x");
+    uart.write(&hex8(mul_failures));
+    uart.write(b" square_failures=0x");
+    uart.write(&hex8(square_failures));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
