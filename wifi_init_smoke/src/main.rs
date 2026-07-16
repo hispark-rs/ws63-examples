@@ -1008,6 +1008,27 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" recovery_failures=0x");
     uart.write(&hex8(recovery_failures));
     uart.write(b"\r\n");
+    let [
+        requests,
+        failures,
+        total_ms,
+        max_ms,
+        recovery_tests,
+        recovery_failures,
+    ] = ws63_rf_rs::hardware_cipher_diagnostic_snapshot();
+    uart.write(b"RFDBG_HW_CIPHER requests=0x");
+    uart.write(&hex8(requests));
+    uart.write(b" failures=0x");
+    uart.write(&hex8(failures));
+    uart.write(b" total_ms=0x");
+    uart.write(&hex8(total_ms));
+    uart.write(b" max_ms=0x");
+    uart.write(&hex8(max_ms));
+    uart.write(b" recovery_tests=0x");
+    uart.write(&hex8(recovery_tests));
+    uart.write(b" recovery_failures=0x");
+    uart.write(&hex8(recovery_failures));
+    uart.write(b"\r\n");
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }
