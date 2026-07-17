@@ -1150,6 +1150,22 @@ fn write_upstream_supplicant_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::
     uart.write(b" y2_failures=0x");
     uart.write(&hex8(y2_failures));
     uart.write(b"\r\n");
+    #[cfg(feature = "rf-crypto-contention-diag")]
+    {
+        let [tests, failures, observed, holder, waiter] =
+            ws63_rf_rs::hardware_crypto_contention_diagnostic_snapshot();
+        uart.write(b"RFDBG_HW_CONTENTION tests=0x");
+        uart.write(&hex8(tests));
+        uart.write(b" failures=0x");
+        uart.write(&hex8(failures));
+        uart.write(b" observed=0x");
+        uart.write(&hex8(observed));
+        uart.write(b" holder=0x");
+        uart.write(&hex8(holder));
+        uart.write(b" waiter=0x");
+        uart.write(&hex8(waiter));
+        uart.write(b"\r\n");
+    }
     #[cfg(feature = "rf-eloop-diag")]
     write_netif_rx_diagnostics(uart);
 }

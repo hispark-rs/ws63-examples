@@ -34,6 +34,10 @@ rf-vendor-log = ["full-init"]
 # perturb the RF timing it is intended to observe.
 rf-init-diag = ["full-init", "ws63-rf-rs/rf-init-diag"]
 rf-eloop-diag = ["full-init", "ws63-rf-rs/rf-eloop-diag"]
+rf-crypto-contention-diag = [
+    "full-init",
+    "ws63-rf-rs/rf-crypto-contention-diag",
+]
 rf-auth-scan-filter = ["rf-eloop-diag", "ws63-rf-rs/rf-auth-scan-filter"]
 rf-watchpoint-gate = ["full-init"]
 rf-queue-guard = ["full-init", "ws63-rf-rs/rf-queue-guard"]
