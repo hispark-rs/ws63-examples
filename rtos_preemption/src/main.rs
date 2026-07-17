@@ -200,6 +200,11 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
     uart.write(b"A3_STAGE_IRQS_ON\r\n");
 
+    // No dynamic task is ready yet, so this sleep must hand off to the reserved
+    // idle task. TIMER_INT0 must then wake main and replace idle at IRQ exit.
+    hisi_rf_rtos_driver::sleep_ms(NonZeroU32::new(20).unwrap()).unwrap();
+    uart.write(b"A3_RTOS_IDLE_WAKE_OK\r\n");
+
     for entry in [worker0, worker1] {
         hisi_rf_rtos_driver::spawn(
             entry,
