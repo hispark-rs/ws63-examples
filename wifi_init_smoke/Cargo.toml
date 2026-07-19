@@ -59,7 +59,7 @@ hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = fal
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 hisi-rf = { version = "0.1.0-alpha.1", features = ["smoltcp"] }
 hisi-rf-rtos-driver = "0.1.0-alpha.12"
-hisi-rtos = "0.1.0-alpha.3"
+hisi-rtos = "0.1.0-alpha.6"
 smoltcp = { version = "0.13", default-features = false, features = [
     "medium-ethernet",
     "proto-ipv4",
