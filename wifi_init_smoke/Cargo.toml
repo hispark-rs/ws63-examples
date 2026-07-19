@@ -58,7 +58,7 @@ hisi-hal = { path = "../../../crates/hisi-hal", features = ["chip-ws63", "unstab
 hisi-riscv-rt = { path = "../../../crates/hisi-riscv-rt", default-features = false, features = ["chip-ws63", "bundled-memory-x", "boot-header", "ws63-bgle-32k"] }
 hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = ["panic-uart0"] }
 hisi-rf = { version = "0.1.0-alpha.1", features = ["smoltcp"] }
-hisi-rf-rtos-driver = "0.1.0-alpha.11"
+hisi-rf-rtos-driver = "0.1.0-alpha.12"
 hisi-rtos = "0.1.0-alpha.3"
 smoltcp = { version = "0.13", default-features = false, features = [
     "medium-ethernet",
