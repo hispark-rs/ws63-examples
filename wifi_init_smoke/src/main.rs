@@ -1305,6 +1305,7 @@ const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
         hisi_rf_rtos_driver::Error::TimedOut => 7,
         hisi_rf_rtos_driver::Error::Runtime => 8,
         hisi_rf_rtos_driver::Error::IncompatibleContract => 9,
+        hisi_rf_rtos_driver::Error::IncompatibleExecutionProfile => 10,
     }
 }
 
@@ -2263,6 +2264,7 @@ fn write_wifi_error(
                 hisi_rf_rtos_driver::Error::TimedOut => 7,
                 hisi_rf_rtos_driver::Error::Runtime => 8,
                 hisi_rf_rtos_driver::Error::IncompatibleContract => 9,
+                hisi_rf_rtos_driver::Error::IncompatibleExecutionProfile => 10,
             };
             0xffff_ff00 | detail
         }
