@@ -327,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "hisi-hal"
-version = "0.7.0-alpha.2"
+version = "0.7.0-alpha.3"
 dependencies = [
  "bs2x-pac",
  "cfg-if",
@@ -348,14 +348,14 @@ version = "0.1.0"
 
 [[package]]
 name = "hisi-rf-rtos-driver"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.10"
 dependencies = [
  "critical-section",
 ]
 
 [[package]]
 name = "hisi-riscv-rt"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "critical-section",
  "riscv",
@@ -605,6 +605,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1376b15f3ff160e9b1e8ea564ce427f2f6fcf77528cc0a8bf405cb476f9cea7"
 
 [[package]]
+name = "rtos_budget_enforcement"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "hisi-alloc",
+ "hisi-hal",
+ "hisi-panic-handler",
+ "hisi-rf-rtos-driver",
+ "hisi-riscv-rt",
+ "hisi-rtos",
+]
+
+[[package]]
 name = "rtos_embassy_coexist"
 version = "0.1.0"
 dependencies = [
@@ -844,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "ws63-pac"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "critical-section",
  "riscv",
