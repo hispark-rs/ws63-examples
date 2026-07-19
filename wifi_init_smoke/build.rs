@@ -220,6 +220,10 @@ fn main() {
         std::env::var_os("DEP_WS63_RADIO_SYS_NVS_LINKER")
             .expect("ws63-radio-sys did not export its NVS linker contract"),
     );
+    let rom_patch_object = PathBuf::from(
+        std::env::var_os("DEP_WS63_RADIO_SYS_ROM_PATCH_OBJECT")
+            .expect("ws63-radio-sys did not export its ROM patch object"),
+    );
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     println!("cargo:rustc-link-arg=-T{}", nvs_linker.display());
@@ -230,6 +234,7 @@ fn main() {
         let exception_diag = out_dir.join("exception_diag.o");
         write_exception_diag_object(&exception_diag);
         println!("cargo:rustc-link-arg={}", exception_diag.display());
+        println!("cargo:rustc-link-arg={}", rom_patch_object.display());
 
         let rom_fallbacks = out_dir.join("ws63_acore_rom_fallbacks.lds");
         let rom_callback_fallbacks = out_dir.join("ws63_acore_rom_callback_fallbacks.lds");
@@ -299,6 +304,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", rom.display());
     println!("cargo:rerun-if-changed={}", rom_callbacks.display());
     println!("cargo:rerun-if-changed={}", rom_callback_archive.display());
+    println!("cargo:rerun-if-changed={}", rom_patch_object.display());
     println!("cargo:rerun-if-changed={}", lib_dir.display());
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_PERSONAL");
 }
