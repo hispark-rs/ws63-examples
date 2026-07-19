@@ -348,7 +348,7 @@ version = "0.1.0"
 
 [[package]]
 name = "hisi-rf-rtos-driver"
-version = "0.1.0-alpha.12"
+version = "0.1.0-alpha.13"
 dependencies = [
  "critical-section",
 ]
@@ -365,7 +365,7 @@ dependencies = [
 
 [[package]]
 name = "hisi-rtos"
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 dependencies = [
  "critical-section",
  "embassy-time-driver",
