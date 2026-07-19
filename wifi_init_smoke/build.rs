@@ -196,14 +196,10 @@ fn write_rom_callback_fallbacks(source: &Path, output: &Path) {
 fn main() {
     println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
-    let lib_dir = std::env::var_os("WS63_RF_LIB_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            PathBuf::from(
-                std::env::var_os("DEP_WS63_RADIO_SYS_LIB_DIR")
-                    .expect("ws63-radio-sys did not export its archive directory"),
-            )
-        });
+    let lib_dir = PathBuf::from(
+        std::env::var_os("DEP_WS63_RADIO_SYS_LIB_DIR")
+            .expect("ws63-radio-sys did not export its archive directory"),
+    );
     let rom = PathBuf::from(
         std::env::var_os("DEP_HISI_ROM_SYS_WS63_ROM_SYMBOLS")
             .expect("hisi-rom-sys did not export WS63 ROM symbols"),
