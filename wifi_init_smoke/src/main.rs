@@ -584,7 +584,7 @@ fn run_wifi_smoke(
         runner as *mut Ws63RadioRunner as *mut core::ffi::c_void,
         hisi_rf_rtos_driver::TaskConfig {
             stack_size: core::num::NonZeroUsize::new(8 * 1024).unwrap(),
-            priority: 10,
+            priority: hisi_rf_rtos_driver::TaskPriority::new(10).unwrap(),
         },
     ) {
         write_radio_error(
@@ -1304,6 +1304,7 @@ const fn radio_runtime_error_code(error: hisi_rf_rtos_driver::Error) -> u32 {
         hisi_rf_rtos_driver::Error::InvalidContext => 6,
         hisi_rf_rtos_driver::Error::TimedOut => 7,
         hisi_rf_rtos_driver::Error::Runtime => 8,
+        hisi_rf_rtos_driver::Error::IncompatibleContract => 9,
     }
 }
 
@@ -2261,6 +2262,7 @@ fn write_wifi_error(
                 hisi_rf_rtos_driver::Error::InvalidContext => 6,
                 hisi_rf_rtos_driver::Error::TimedOut => 7,
                 hisi_rf_rtos_driver::Error::Runtime => 8,
+                hisi_rf_rtos_driver::Error::IncompatibleContract => 9,
             };
             0xffff_ff00 | detail
         }

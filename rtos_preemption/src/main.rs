@@ -211,7 +211,7 @@ fn main() -> ! {
             core::ptr::null_mut(),
             TaskConfig {
                 stack_size: NonZeroUsize::new(TASK_STACK_SIZE).unwrap(),
-                priority: 31,
+                priority: hisi_rf_rtos_driver::TaskPriority::LOWEST,
             },
         )
         .unwrap();

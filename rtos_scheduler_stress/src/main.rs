@@ -180,7 +180,7 @@ fn main() -> ! {
             core::ptr::null_mut(),
             TaskConfig {
                 stack_size: NonZeroUsize::new(STACK_SIZE).unwrap(),
-                priority,
+                priority: hisi_rf_rtos_driver::TaskPriority::new(priority).unwrap(),
             },
         )
         .unwrap();
