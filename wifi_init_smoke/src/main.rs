@@ -82,7 +82,7 @@ const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
 #[cfg(feature = "upstream-supplicant")]
 const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
     Some(value) => value.as_bytes(),
-    None => b"testtest",
+    None => b"",
 };
 
 #[cfg(all(
