@@ -49,6 +49,9 @@ startup-trace = ["hisi-riscv-rt/startup-uart-trace"]
 name = "wifi_init_smoke"
 path = "src/main.rs"
 
+[build-dependencies]
+object = { version = "0.37", default-features = false, features = ["write"] }
+
 [dependencies]
 critical-section = "1"
 hisi-rom-sys = { version = "0.1.0-alpha.3", features = ["chip-ws63"] }

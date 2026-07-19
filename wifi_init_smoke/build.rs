@@ -10,6 +10,71 @@ use std::{
     path::{Path, PathBuf},
 };
 
+fn write_exception_diag_object(output: &Path) {
+    use object::write::{Object, Relocation, Symbol, SymbolSection};
+    use object::{
+        Architecture, BinaryFormat, Endianness, FileFlags, RelocationFlags, SectionKind,
+        SymbolFlags, SymbolKind, SymbolScope,
+    };
+
+    let mut object = Object::new(BinaryFormat::Elf, Architecture::Riscv32, Endianness::Little);
+    object.flags = FileFlags::Elf {
+        os_abi: 0,
+        abi_version: 0,
+        // EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_SINGLE.
+        e_flags: 0x3,
+    };
+    let text = object.add_section(
+        Vec::new(),
+        b".text.default_exc_handler".to_vec(),
+        SectionKind::Text,
+    );
+    // auipc t1, 0; jalr x0, t1, 0. R_RISCV_CALL_PLT resolves the pair to the
+    // Rust diagnostic function at final link time. Keeping this as a separate
+    // ELF object lets the strong symbol override the runtime's weak handler
+    // without merging duplicate global_asm definitions under LTO.
+    object.append_section_data(text, &[0x17, 0x03, 0x00, 0x00, 0x67, 0x00, 0x03, 0x00], 4);
+    object.add_symbol(Symbol {
+        name: b"default_exc_handler".to_vec(),
+        value: 0,
+        size: 8,
+        kind: SymbolKind::Text,
+        scope: SymbolScope::Linkage,
+        weak: false,
+        section: SymbolSection::Section(text),
+        flags: SymbolFlags::None,
+    });
+    let target = object.add_symbol(Symbol {
+        name: b"__ws63_rf_exception_diag".to_vec(),
+        value: 0,
+        size: 0,
+        kind: SymbolKind::Text,
+        scope: SymbolScope::Linkage,
+        weak: false,
+        section: SymbolSection::Undefined,
+        flags: SymbolFlags::None,
+    });
+    object
+        .add_relocation(
+            text,
+            Relocation {
+                offset: 0,
+                symbol: target,
+                addend: 0,
+                // R_RISCV_CALL_PLT applies to the AUIPC/JALR instruction pair.
+                flags: RelocationFlags::Elf { r_type: 19 },
+            },
+        )
+        .expect("add exception diagnostic relocation");
+    fs::write(
+        output,
+        object
+            .write()
+            .expect("serialize exception diagnostic object"),
+    )
+    .expect("write exception diagnostic object");
+}
+
 fn metadata_list(name: &str) -> Vec<String> {
     std::env::var(name)
         .unwrap_or_else(|_| panic!("ws63-radio-sys did not export {name}"))
@@ -131,7 +196,6 @@ fn write_rom_callback_fallbacks(source: &Path, output: &Path) {
 fn main() {
     println!("cargo:rustc-link-arg=-Thisi-riscv-link.x");
 
-    let manifest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let lib_dir = std::env::var_os("WS63_RF_LIB_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -163,28 +227,9 @@ fn main() {
 
     if std::env::var_os("CARGO_FEATURE_FULL_INIT").is_some() {
         let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
-        let exception_diag = manifest.join("src/exception_diag.S");
-        let exception_diag_obj = out_dir.join("exception_diag.o");
-        let status = std::process::Command::new("riscv64-unknown-elf-gcc")
-            .args([
-                "-x",
-                "assembler-with-cpp",
-                "-c",
-                "-march=rv32imfc",
-                "-mabi=ilp32f",
-                "-o",
-                exception_diag_obj
-                    .to_str()
-                    .expect("UTF-8 exception object path"),
-                exception_diag
-                    .to_str()
-                    .expect("UTF-8 exception source path"),
-            ])
-            .status()
-            .expect("run riscv64-unknown-elf-gcc for exception diagnostic");
-        assert!(status.success(), "compile exception diagnostic trampoline");
-        println!("cargo:rustc-link-arg={}", exception_diag_obj.display());
-        println!("cargo:rerun-if-changed={}", exception_diag.display());
+        let exception_diag = out_dir.join("exception_diag.o");
+        write_exception_diag_object(&exception_diag);
+        println!("cargo:rustc-link-arg={}", exception_diag.display());
 
         let rom_fallbacks = out_dir.join("ws63_acore_rom_fallbacks.lds");
         let rom_callback_fallbacks = out_dir.join("ws63_acore_rom_callback_fallbacks.lds");
