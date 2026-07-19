@@ -3,10 +3,10 @@
 //! This is the first real-silicon RF milestone binary. By default it is an RF1
 //! image smoke: it proves the runtime image, `.wifi_pkt_ram`, panic path, and
 //! RF porting crate fit together. With `--features full-init`, it pulls in the
-//! vendor Wi-Fi init closure and calls `uapi_wifi_init`. Build that path through
-//! `rf-build-full-init-lld-layout-patch.sh`: stock `rust-lld` owns the final
-//! layout while the guarded post-link lane resolves HiSilicon custom
-//! relocations and verifies every patched section against that layout.
+//! vendor Wi-Fi init closure and calls `uapi_wifi_init`. The normal path is an
+//! ordinary Cargo build: `ws63-radio-sys` supplies Cargo-delivered archives with
+//! standard relocations and a relocatable mask-ROM patch table, so stock
+//! `rust-lld` owns and completes the final layout in one link.
 
 #![no_std]
 #![no_main]

@@ -8,9 +8,8 @@ license = "MIT"
 [features]
 default = []
 # Pulls the full vendor Wi-Fi init closure into the final executable and calls
-# `uapi_wifi_init`. The full image must be built through the guarded RF script,
-# which lets stock rust-lld choose the layout and patches the vendor custom
-# relocations before a layout-verification relink.
+# `uapi_wifi_init`. Cargo-delivered normalized archives and the relocatable ROM
+# patch object let stock rust-lld produce the final ELF in one ordinary build.
 full-init = ["ws63-rf-rs/net", "ws63-radio-sys/wifi"]
 # Compile the pinned upstream hostap native port against the scan-only WS63
 # driver path. This intentionally excludes the legacy WPA archives; W2 adds
@@ -23,11 +22,11 @@ upstream-wpa3 = ["upstream-supplicant", "ws63-rf-rs/upstream-supplicant-wpa3"]
 personal = []
 # Run the protected-network smoke through the vendor WPA supplicant.
 wpa = ["personal", "full-init", "ws63-rf-rs/wpa", "ws63-radio-sys/wpa2-personal"]
-# Link the W2 WPA3-Personal/SAE candidate. This remains a guarded bring-up
-# feature until pure WPA3 HIL passes on a controlled AP.
+# Link the legacy vendor WPA3-Personal/SAE oracle. The upstream profile above is
+# the formal migration path; pure WPA3 HIL remains its release gate.
 wpa3 = ["personal", "full-init", "ws63-rf-rs/wifi-wpa3-personal", "ws63-radio-sys/wpa3-personal"]
 # Retain the latest vendor Wi-Fi diagnostics in a fixed ring buffer and flush
-# them to UART0 after the guarded operation. Keep this bring-up aid opt-in.
+# them to UART0 after the radio operation. Keep this bring-up aid opt-in.
 rf-vendor-log = ["full-init"]
 # Opt-in wrappers and high-volume traces for diagnosing the vendor closure.
 # Keep this out of the normal scan path: synchronous UART from hot paths can
