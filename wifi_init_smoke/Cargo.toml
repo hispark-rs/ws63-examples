@@ -60,7 +60,7 @@ hisi-panic-handler = { path = "../../../crates/hisi-panic-handler", features = [
 # Migration-only source compatibility: this diagnostic still reaches internal
 # backend probes through `ws63-rf-rs`. Keep its public RF types on the core
 # contract so it does not link the new facade-selected WS63 backend twice.
-hisi-rf = { package = "hisi-rf-core", version = "0.1.0-alpha.1", features = ["smoltcp"] }
+hisi-rf-core = { version = "0.1.0-alpha.1", features = ["smoltcp"] }
 hisi-rf-rtos-driver = "0.1.0-alpha.14"
 hisi-rtos = "0.1.0-alpha.8"
 smoltcp = { version = "0.13", default-features = false, features = [

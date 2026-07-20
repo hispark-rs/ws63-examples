@@ -3,7 +3,7 @@
 use core::num::NonZeroU32;
 
 use hisi_hal::uart::Uart;
-use hisi_rf::WifiDevice;
+use hisi_rf_core::WifiDevice;
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
 use smoltcp::phy::{ChecksumCapabilities, Device};
 use smoltcp::socket::{dhcpv4, icmp};

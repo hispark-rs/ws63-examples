@@ -40,6 +40,7 @@ use hisi_hal::timer::TimerAlarm0;
 use hisi_hal::uart::{Config, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
+use hisi_rf_core as hisi_rf;
 use hisi_riscv_rt::entry;
 #[cfg(all(
     feature = "full-init",
