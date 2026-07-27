@@ -17,7 +17,10 @@ use hisi_hal::timer::TimerAlarm0;
 use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
-use hisi_rf_rtos_driver::{SemaphoreHandle, TaskConfig, WaitOutcome, WaitTimeout};
+use hisi_rf_rtos_driver::{
+    Error as RuntimeError, SemaphoreHandle, TaskConfig, WaitCancellationOutcome, WaitOutcome,
+    WaitTimeout,
+};
 use hisi_riscv_rt::entry;
 
 const HEAP_SIZE: usize = 48 * 1024;
@@ -39,6 +42,10 @@ static IN_HANDLER: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static RAN_IN_HANDLER: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static TIMEOUT_OK: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 static IRQ_WAKE_OK: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+static RESOURCE_SEM: Mutex<Cell<Option<SemaphoreHandle>>> = Mutex::new(Cell::new(None));
+static RESOURCE_WAIT_STARTED: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+static RESOURCE_WAIT_DONE: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
+static RESOURCE_WAIT_CANCELLED: Mutex<Cell<bool>> = Mutex::new(Cell::new(false));
 
 unsafe fn allocate(size: usize) -> *mut u8 {
     HEAP.allocate_zeroed(size, 16)
@@ -93,6 +100,24 @@ extern "C" fn irq_woken_task(_: *mut c_void) -> *mut c_void {
         }
         IRQ_WAKE_OK.borrow(cs).set(outcome == WaitOutcome::Acquired);
     });
+    core::ptr::null_mut()
+}
+
+extern "C" fn resource_wait_task(_: *mut c_void) -> *mut c_void {
+    critical_section::with(|cs| RESOURCE_WAIT_STARTED.borrow(cs).set(true));
+    let outcome =
+        hisi_rf_rtos_driver::semaphore_down(semaphore(&RESOURCE_SEM), WaitTimeout::Forever)
+            .unwrap();
+    critical_section::with(|cs| {
+        RESOURCE_WAIT_CANCELLED
+            .borrow(cs)
+            .set(outcome == WaitOutcome::TimedOut);
+        RESOURCE_WAIT_DONE.borrow(cs).set(true);
+    });
+    core::ptr::null_mut()
+}
+
+extern "C" fn replacement_task(_: *mut c_void) -> *mut c_void {
     core::ptr::null_mut()
 }
 
@@ -191,6 +216,127 @@ fn main() -> ! {
     SoftwareInterrupt0::pend_interrupt();
     hisi_rf_rtos_driver::sleep_ms(NonZeroU32::new(100).unwrap()).unwrap();
 
+    let resource_sem = hisi_rf_rtos_driver::semaphore_create(0).unwrap();
+    critical_section::with(|cs| RESOURCE_SEM.borrow(cs).set(Some(resource_sem)));
+    let resource_task = hisi_rf_rtos_driver::spawn(
+        resource_wait_task,
+        core::ptr::null_mut(),
+        TaskConfig {
+            stack_size: NonZeroUsize::new(STACK_SIZE).unwrap(),
+            priority: hisi_rf_rtos_driver::TaskPriority::new(4).unwrap(),
+        },
+    )
+    .unwrap();
+    hisi_rf_rtos_driver::yield_now().unwrap();
+    let resource_wait_started = critical_section::with(|cs| RESOURCE_WAIT_STARTED.borrow(cs).get());
+    // SAFETY: the task remains blocked on this live semaphore, so destroy must
+    // fail closed and cannot invalidate the handle.
+    let destroy_with_waiter = unsafe {
+        hisi_rf_rtos_driver::semaphore_destroy(resource_sem) == Err(RuntimeError::InvalidContext)
+    };
+    hisi_rf_rtos_driver::lock_scheduler().unwrap();
+    hisi_rf_rtos_driver::semaphore_up(resource_sem).unwrap();
+    let cancel_after_grant =
+        hisi_rf_rtos_driver::cancel_wait(resource_task) == Ok(WaitCancellationOutcome::Cancelled);
+    hisi_rf_rtos_driver::unlock_scheduler().unwrap();
+    hisi_rf_rtos_driver::yield_now().unwrap();
+    let (resource_wait_done, resource_wait_cancelled) = critical_section::with(|cs| {
+        (
+            RESOURCE_WAIT_DONE.borrow(cs).get(),
+            RESOURCE_WAIT_CANCELLED.borrow(cs).get(),
+        )
+    });
+
+    // SAFETY: the only task that borrowed the semaphore has returned.
+    let destroy_once = unsafe { hisi_rf_rtos_driver::semaphore_destroy(resource_sem).is_ok() };
+    // SAFETY: this intentionally probes the generation-bearing stale handle.
+    let duplicate_destroy = unsafe {
+        hisi_rf_rtos_driver::semaphore_destroy(resource_sem) == Err(RuntimeError::InvalidHandle)
+    };
+    let stale_resource_rejected =
+        hisi_rf_rtos_driver::semaphore_up(resource_sem) == Err(RuntimeError::InvalidHandle);
+    let replacement_sem = hisi_rf_rtos_driver::semaphore_create(0).unwrap();
+    let resource_generation_changed = replacement_sem.into_raw() != resource_sem.into_raw();
+    // SAFETY: no task has borrowed the replacement semaphore.
+    let replacement_destroyed =
+        unsafe { hisi_rf_rtos_driver::semaphore_destroy(replacement_sem).is_ok() };
+
+    let stale_task_rejected =
+        hisi_rf_rtos_driver::cancel_wait(resource_task) == Err(RuntimeError::InvalidHandle);
+    let replacement_task_id = hisi_rf_rtos_driver::spawn(
+        replacement_task,
+        core::ptr::null_mut(),
+        TaskConfig {
+            stack_size: NonZeroUsize::new(STACK_SIZE).unwrap(),
+            priority: hisi_rf_rtos_driver::TaskPriority::new(4).unwrap(),
+        },
+    )
+    .unwrap();
+    hisi_rf_rtos_driver::yield_now().unwrap();
+    let task_generation_changed = replacement_task_id != resource_task;
+    let old_generation_still_rejected =
+        hisi_rf_rtos_driver::cancel_wait(resource_task) == Err(RuntimeError::InvalidHandle);
+
+    let resource_mutex = hisi_rf_rtos_driver::mutex_create().unwrap();
+    let mutex_acquired = hisi_rf_rtos_driver::mutex_lock(resource_mutex, WaitTimeout::NoWait)
+        == Ok(WaitOutcome::Acquired);
+    // SAFETY: the live owner makes destroy invalid; the runtime must reject it.
+    let destroy_with_owner = unsafe {
+        hisi_rf_rtos_driver::mutex_destroy(resource_mutex) == Err(RuntimeError::InvalidContext)
+    };
+    hisi_rf_rtos_driver::mutex_unlock(resource_mutex).unwrap();
+    // SAFETY: the mutex is unlocked and has no waiter.
+    let mutex_destroy_once = unsafe { hisi_rf_rtos_driver::mutex_destroy(resource_mutex).is_ok() };
+    // SAFETY: this intentionally probes duplicate destroy handling.
+    let mutex_duplicate_destroy = unsafe {
+        hisi_rf_rtos_driver::mutex_destroy(resource_mutex) == Err(RuntimeError::InvalidHandle)
+    };
+    let stale_mutex_rejected = hisi_rf_rtos_driver::mutex_lock(resource_mutex, WaitTimeout::NoWait)
+        == Err(RuntimeError::InvalidHandle);
+    let resource_lifecycle_ok = resource_wait_started
+        && destroy_with_waiter
+        && cancel_after_grant
+        && resource_wait_done
+        && resource_wait_cancelled
+        && destroy_once
+        && duplicate_destroy
+        && stale_resource_rejected
+        && resource_generation_changed
+        && replacement_destroyed
+        && stale_task_rejected
+        && task_generation_changed
+        && old_generation_still_rejected
+        && mutex_acquired
+        && destroy_with_owner
+        && mutex_destroy_once
+        && mutex_duplicate_destroy
+        && stale_mutex_rejected;
+    let resource_flags = [
+        resource_wait_started,
+        destroy_with_waiter,
+        cancel_after_grant,
+        resource_wait_done,
+        resource_wait_cancelled,
+        destroy_once,
+        duplicate_destroy,
+        stale_resource_rejected,
+        resource_generation_changed,
+        replacement_destroyed,
+        stale_task_rejected,
+        task_generation_changed,
+        old_generation_still_rejected,
+        mutex_acquired,
+        destroy_with_owner,
+        mutex_destroy_once,
+        mutex_duplicate_destroy,
+        stale_mutex_rejected,
+    ]
+    .iter()
+    .enumerate()
+    .fold(0_u32, |flags, (bit, value)| {
+        flags | (u32::from(*value) << bit)
+    });
+
     let (timeout_ok, irq_wake_ok, ran_in_handler, posted) = critical_section::with(|cs| {
         (
             TIMEOUT_OK.borrow(cs).get(),
@@ -225,6 +371,13 @@ fn main() -> ! {
         uart.write(b"\r\nA3_SCHEDULER_STRESS_OK\r\n");
     } else {
         uart.write(b"\r\nA3_SCHEDULER_STRESS_FAIL\r\n");
+    }
+    if resource_lifecycle_ok {
+        uart.write(b"\r\nA5R_RESOURCE_LIFECYCLE_OK\r\n");
+    } else {
+        uart.write(b"\r\nA5R_RESOURCE_LIFECYCLE_FAIL flags=");
+        write_u32(&uart, resource_flags);
+        uart.write(b" expected=262143\r\n");
     }
     loop {
         core::hint::spin_loop();
