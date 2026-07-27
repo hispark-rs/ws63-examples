@@ -650,6 +650,7 @@ fn run_wifi_smoke(
     #[cfg(feature = "upstream-supplicant")]
     {
         uart.write(b"W2D_NATIVE_RUNNER_RX_READY\r\n");
+        dump_rtos_task_metrics();
         let Some(result) = results[..scan.count]
             .iter()
             .find(|result| result.ssid.as_bytes() == TEST_SSID)
