@@ -285,6 +285,12 @@ fn main() {
                 );
             }
         }
+        if let Some(archive) = std::env::var_os("DEP_WS63_RADIO_SYS_NATIVE_SUPPLICANT_ARCHIVE") {
+            for symbol in metadata_list("DEP_WS63_RADIO_SYS_NATIVE_SUPPLICANT_ROOT_SYMBOLS") {
+                println!("cargo:rustc-link-arg=--undefined={symbol}");
+            }
+            println!("cargo:rustc-link-arg={}", PathBuf::from(archive).display());
+        }
         // The archive contains two independent ABI payloads. Pull the complete
         // ordered veneer table and the original platform ROM-data initializer;
         // hisi-riscv-rt places the latter at the fixed DTCM addresses consumed
@@ -303,4 +309,5 @@ fn main() {
     println!("cargo:rerun-if-changed={}", rom_patch_object.display());
     println!("cargo:rerun-if-changed={}", lib_dir.display());
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_PERSONAL");
+    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_UPSTREAM_SUPPLICANT");
 }
