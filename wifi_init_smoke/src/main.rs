@@ -595,10 +595,10 @@ fn run_wifi_smoke(
         write_radio_error(
             uart,
             b"RF2_INIT_ERR",
-            hisi_rf::Error::Backend(hisi_rf::BackendError {
-                class: hisi_rf::BackendErrorClass::Initialize,
-                code: 0x3000_0000 | radio_runtime_error_code(error),
-            }),
+            hisi_rf::Error::Backend(hisi_rf::BackendError::new(
+                hisi_rf::BackendErrorClass::Initialize,
+                0x3000_0000 | radio_runtime_error_code(error),
+            )),
         );
         return;
     }
@@ -1271,7 +1271,7 @@ fn write_radio_error(
     let (class, code) = match error {
         hisi_rf::Error::AlreadyInitialized => (0_u32, 1_u32),
         hisi_rf::Error::Protocol => (0, 2),
-        hisi_rf::Error::Backend(error) => (radio_error_class_code(error.class), error.code),
+        hisi_rf::Error::Backend(error) => (radio_error_class_code(error.class()), error.code()),
     };
     uart.write(b" class=0x");
     uart.write(&hex8(class));
@@ -1289,6 +1289,8 @@ const fn radio_error_class_code(class: hisi_rf::BackendErrorClass) -> u32 {
         hisi_rf::BackendErrorClass::Initialize => 1,
         hisi_rf::BackendErrorClass::Busy => 2,
         hisi_rf::BackendErrorClass::Timeout => 3,
+        hisi_rf::BackendErrorClass::Cancelled => 7,
+        hisi_rf::BackendErrorClass::ResourceUnavailable => 8,
         hisi_rf::BackendErrorClass::UnsupportedSecurity => 4,
         hisi_rf::BackendErrorClass::Connect => 5,
         hisi_rf::BackendErrorClass::Other => 6,
@@ -1789,6 +1791,8 @@ fn dump_rtos_task_metrics() {
         rf_log_uart0(&hex8(task.state as u32));
         rf_log_uart0(b" entry=0x");
         rf_log_uart0(&hex8(task.entry as u32));
+        rf_log_uart0(b" stack_bytes=0x");
+        rf_log_uart0(&hex8(task.stack_size as u32));
         rf_log_uart0(b" base_priority=0x");
         rf_log_uart0(&hex8(task.base_priority as u32));
         rf_log_uart0(b" priority=0x");
