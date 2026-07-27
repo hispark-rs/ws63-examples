@@ -651,6 +651,7 @@ fn run_wifi_smoke(
     {
         uart.write(b"W2D_NATIVE_RUNNER_RX_READY\r\n");
         dump_rtos_task_metrics();
+        dump_rf_heap_metrics();
         let Some(result) = results[..scan.count]
             .iter()
             .find(|result| result.ssid.as_bytes() == TEST_SSID)
@@ -1841,6 +1842,26 @@ fn dump_rtos_task_metrics() {
         rf_log_uart0(&hex16(task.max_irq_span_ms));
         rf_log_uart0(b"\r\n");
     }
+}
+
+#[cfg(feature = "full-init")]
+fn dump_rf_heap_metrics() {
+    let metrics = ws63_rf_rs::rf_heap_metrics();
+    rf_log_uart0(b"RFDBG_HEAP arena=0x");
+    rf_log_uart0(&hex8(metrics.arena_bytes as u32));
+    rf_log_uart0(b" used=0x");
+    rf_log_uart0(&hex8(metrics.used_bytes as u32));
+    rf_log_uart0(b" peak=0x");
+    rf_log_uart0(&hex8(metrics.peak_used_bytes as u32));
+    rf_log_uart0(b" live=0x");
+    rf_log_uart0(&hex8(metrics.live_allocations as u32));
+    rf_log_uart0(b" peak_live=0x");
+    rf_log_uart0(&hex8(metrics.peak_live_allocations as u32));
+    rf_log_uart0(b" alloc_fail=0x");
+    rf_log_uart0(&hex8(metrics.allocation_failures as u32));
+    rf_log_uart0(b" free_fail=0x");
+    rf_log_uart0(&hex8(metrics.deallocation_failures as u32));
+    rf_log_uart0(b"\r\n");
 }
 
 #[cfg(all(
