@@ -7,6 +7,7 @@
 #![no_main]
 #![no_std]
 
+mod config;
 mod network_runner;
 
 use core::cell::Cell;
@@ -30,8 +31,8 @@ use hisi_rf::ws63::{
     WifiDevice, Ws63IncrementalWaitDiagnostics, declare_radio_storage,
 };
 use hisi_rf::{
-    DiagnosticCode, IncrementalDriverEvent, IncrementalRunnerDiagnostics, Passphrase, RadioConfig,
-    ScanConfig, ScanResult, StationConfig, WifiController, WifiEvent, WorkBudget,
+    DiagnosticCode, IncrementalDriverEvent, IncrementalRunnerDiagnostics, Passphrase, ScanConfig,
+    ScanResult, StationConfig, WifiController, WifiEvent,
 };
 #[cfg(feature = "wpa3")]
 use hisi_rf::{SaePwe, Security};
@@ -43,16 +44,10 @@ compile_error!("select exactly one station security profile: wpa2 or wpa3");
 #[cfg(not(any(feature = "wpa2", feature = "wpa3")))]
 compile_error!("select exactly one station security profile: wpa2 or wpa3");
 
-const SCAN_RESULT_DEPTH: usize = 32;
-const RUNNER_BUDGET: WorkBudget =
-    WorkBudget::try_new(8, 100_000).expect("non-zero incremental work budget");
-const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
-    Some(value) => value.as_bytes(),
-    None => b"",
-};
-const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
-    Some(value) => value.as_bytes(),
-    None => b"",
+use config::{
+    CONNECT_OPERATION_TIMEOUT, CONNECT_WAIT_DEADLINE, EVENT_WAIT_DEADLINE,
+    INITIALIZE_WAIT_DEADLINE, RUNNER_BUDGET, SCAN_OPERATION_TIMEOUT, SCAN_RESULT_DEPTH,
+    SCAN_WAIT_DEADLINE, TEST_PASSPHRASE, TEST_SSID,
 };
 
 type Uart0 = Uart<'static, hisi_hal::peripherals::Uart0<'static>>;
@@ -131,7 +126,7 @@ fn main() -> ! {
     #[cfg(feature = "wpa3")]
     let resources = resources.pke(p.PKE).build();
 
-    let controller = match hisi_rf::ws63::init(RadioConfig::default(), resources, control_storage) {
+    let controller = match hisi_rf::ws63::init(config::radio_config(), resources, control_storage) {
         Ok(controller) => controller,
         Err(error) => {
             write_diagnostic(uart, b"RF2_INIT_ERR:", error.diagnostic());
@@ -182,7 +177,7 @@ async fn connectivity(
     uart: &'static Uart0,
 ) {
     let initialize_started = monotonic_ms();
-    match with_timeout(Duration::from_secs(30), controller.initialize()).await {
+    match with_timeout(INITIALIZE_WAIT_DEADLINE, controller.initialize()).await {
         Ok(Ok(())) => {}
         Ok(Err(error)) => {
             write_controller_error(uart, b"RF2_INIT_ERR:", error);
@@ -208,11 +203,8 @@ async fn connectivity(
     let scan_started = monotonic_ms();
     let outcome = loop {
         match with_timeout(
-            Duration::from_secs(30),
-            controller.scan(
-                ScanConfig::try_from_timeout_ms(15_000).expect("non-zero scan timeout"),
-                &mut scan_results,
-            ),
+            SCAN_WAIT_DEADLINE,
+            controller.scan(ScanConfig::new(SCAN_OPERATION_TIMEOUT), &mut scan_results),
         )
         .await
         {
@@ -232,7 +224,8 @@ async fn connectivity(
                 halt()
             }
             Ok(Err(error))
-                if retries == 0 && error.diagnostic().code() == DiagnosticCode::BackendTimeout =>
+                if retries == 0
+                    && error.diagnostic().code() == DiagnosticCode::OperationTimeout =>
             {
                 retries = 1;
                 Timer::after(Duration::from_millis(250)).await;
@@ -274,9 +267,10 @@ async fn connectivity(
         halt()
     };
     #[cfg(feature = "wpa2")]
-    let station = StationConfig::wpa2_personal(result, passphrase, 60_000);
+    let station = StationConfig::wpa2_personal(result, passphrase, CONNECT_OPERATION_TIMEOUT);
     #[cfg(feature = "wpa3")]
-    let station = StationConfig::wpa3_personal(result, passphrase, SaePwe::Both, 60_000);
+    let station =
+        StationConfig::wpa3_personal(result, passphrase, SaePwe::Both, CONNECT_OPERATION_TIMEOUT);
     let Some(station) = station else {
         uart.write(b"RF5B_CONNECT_ERR:security_mismatch\r\n");
         halt()
@@ -284,7 +278,7 @@ async fn connectivity(
 
     uart.write(b"RF5B_CONNECT_BEGIN\r\n");
     let connect_started = monotonic_ms();
-    match with_timeout(Duration::from_secs(90), controller.connect(station)).await {
+    match with_timeout(CONNECT_WAIT_DEADLINE, controller.connect(station)).await {
         Ok(Ok(_)) => {}
         Ok(Err(error)) => {
             write_controller_error(uart, b"RF5B_CONNECT_ERR:", error);
@@ -327,7 +321,7 @@ enum ExpectedEvent {
 }
 
 async fn expect_event(uart: &Uart0, controller: &mut WifiController, expected: ExpectedEvent) {
-    let event = with_timeout(Duration::from_secs(2), controller.next_event())
+    let event = with_timeout(EVENT_WAIT_DEADLINE, controller.next_event())
         .await
         .unwrap_or_else(|_| {
             uart.write(b"RFDBG_A4_EVENT_ERR reason=timeout\r\n");

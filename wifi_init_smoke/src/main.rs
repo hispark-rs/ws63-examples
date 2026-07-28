@@ -616,7 +616,7 @@ fn run_wifi_smoke(
     uart.write(b"RF3_SCAN_BEGIN\r\n");
     let mut results = [hisi_rf::ScanResult::empty(); MAX_SCAN_RESULTS];
     let scan = match radio_block_on(wifi.controller.scan(
-        hisi_rf::ScanConfig::try_from_timeout_ms(15_000).unwrap(),
+        hisi_rf::ScanConfig::new(hisi_rf::OperationTimeout::try_from_millis(15_000).unwrap()),
         &mut results,
     )) {
         Ok(scan) => scan,
@@ -687,13 +687,17 @@ fn run_wifi_smoke(
             }
         }
         #[cfg(not(feature = "upstream-wpa3"))]
-        let network = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000);
+        let network = hisi_rf::StationConfig::wpa2_personal(
+            result,
+            passphrase,
+            hisi_rf::OperationTimeout::try_from_millis(30_000).unwrap(),
+        );
         #[cfg(feature = "upstream-wpa3")]
         let network = hisi_rf::StationConfig::wpa3_personal(
             result,
             passphrase,
             hisi_rf::SaePwe::Both,
-            30_000,
+            hisi_rf::OperationTimeout::try_from_millis(30_000).unwrap(),
         );
         let Some(network) = network else {
             #[cfg(not(feature = "upstream-wpa3"))]
@@ -751,13 +755,17 @@ fn run_wifi_smoke(
             return;
         };
         #[cfg(feature = "wpa")]
-        let network = hisi_rf::StationConfig::wpa2_personal(result, passphrase, 30_000);
+        let network = hisi_rf::StationConfig::wpa2_personal(
+            result,
+            passphrase,
+            hisi_rf::OperationTimeout::try_from_millis(30_000).unwrap(),
+        );
         #[cfg(feature = "wpa3")]
         let network = hisi_rf::StationConfig::wpa3_personal(
             result,
             passphrase,
             hisi_rf::SaePwe::Both,
-            30_000,
+            hisi_rf::OperationTimeout::try_from_millis(30_000).unwrap(),
         );
         let Some(network) = network else {
             uart.write(b"RF5B_WPA_CONFIG_ERR:unsupported-security\r\n");
@@ -1290,7 +1298,8 @@ const fn radio_error_class_code(class: hisi_rf::BackendErrorClass) -> u32 {
     match class {
         hisi_rf::BackendErrorClass::Initialize => 1,
         hisi_rf::BackendErrorClass::Busy => 2,
-        hisi_rf::BackendErrorClass::Timeout => 3,
+        hisi_rf::BackendErrorClass::OperationTimeout => 3,
+        hisi_rf::BackendErrorClass::BackendTimeout => 9,
         hisi_rf::BackendErrorClass::Cancelled => 7,
         hisi_rf::BackendErrorClass::ResourceUnavailable => 8,
         hisi_rf::BackendErrorClass::UnsupportedSecurity => 4,
