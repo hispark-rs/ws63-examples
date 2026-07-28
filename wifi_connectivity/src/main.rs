@@ -143,10 +143,7 @@ fn main() -> ! {
 }
 
 #[inline(never)]
-fn start_executor(
-    parts: &'static mut IncrementalRadioParts,
-    uart: &'static Uart0,
-) -> ! {
+fn start_executor(parts: &'static mut IncrementalRadioParts, uart: &'static Uart0) -> ! {
     let IncrementalRadioParts { wifi, runner } = parts;
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner: Spawner| {
@@ -156,10 +153,7 @@ fn start_executor(
 }
 
 #[embassy_executor::task]
-async fn radio_runner(
-    runner: &'static mut IncrementalRadioRunner,
-    uart: &'static Uart0,
-) {
+async fn radio_runner(runner: &'static mut IncrementalRadioRunner, uart: &'static Uart0) {
     loop {
         let ready = runner.wait_ready().await.expect("infallible WS63 wait");
         let started = monotonic_ms();
@@ -332,11 +326,7 @@ enum ExpectedEvent {
     Connected,
 }
 
-async fn expect_event(
-    uart: &Uart0,
-    controller: &mut WifiController,
-    expected: ExpectedEvent,
-) {
+async fn expect_event(uart: &Uart0, controller: &mut WifiController, expected: ExpectedEvent) {
     let event = with_timeout(Duration::from_secs(2), controller.next_event())
         .await
         .unwrap_or_else(|_| {
