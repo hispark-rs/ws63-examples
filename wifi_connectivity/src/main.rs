@@ -133,11 +133,7 @@ fn main() -> ! {
     #[cfg(feature = "wpa3")]
     let resources = resources.pke(p.PKE).build();
 
-    let controller = match hisi_rf::ws63::init_incremental_after_blocking_bootstrap(
-        RadioConfig::default(),
-        resources,
-        &RADIO_STORAGE,
-    ) {
+    let controller = match hisi_rf::ws63::init(RadioConfig::default(), resources, &RADIO_STORAGE) {
         Ok(controller) => controller,
         Err(error) => {
             write_diagnostic(uart, b"RF2_INIT_ERR:", error.diagnostic());
