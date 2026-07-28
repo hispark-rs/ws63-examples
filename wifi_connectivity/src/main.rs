@@ -126,9 +126,8 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
     uart.write(b"RF1_IMAGE_OK\r\n");
 
-    let resources =
-        hisi_rf::ws63::Resources::<SelectedProfile>::builder(efuse, radio_arena)
-            .crypto(p.KM, p.SPACC, p.TRNG);
+    let resources = hisi_rf::ws63::Resources::<SelectedProfile>::builder(efuse, radio_arena)
+        .crypto(p.KM, p.SPACC, p.TRNG);
     #[cfg(feature = "wpa2")]
     let resources = resources.build();
     #[cfg(feature = "wpa3")]
