@@ -126,9 +126,17 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
     uart.write(b"RF1_IMAGE_OK\r\n");
 
+    let resources =
+        hisi_rf::ws63::Resources::<SelectedProfile>::builder(efuse, radio_arena)
+            .crypto(p.KM, p.SPACC, p.TRNG);
+    #[cfg(feature = "wpa2")]
+    let resources = resources.build();
+    #[cfg(feature = "wpa3")]
+    let resources = resources.pke(p.PKE).build();
+
     let controller = match hisi_rf::ws63::init_incremental_after_blocking_bootstrap(
         RadioConfig::default(),
-        hisi_rf::ws63::Resources::new(efuse, p.KM, p.SPACC, p.PKE, p.TRNG, radio_arena),
+        resources,
         &RADIO_STORAGE,
     ) {
         Ok(controller) => controller,
