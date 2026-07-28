@@ -43,7 +43,6 @@ compile_error!("select exactly one station security profile: wpa2 or wpa3");
 #[cfg(not(any(feature = "wpa2", feature = "wpa3")))]
 compile_error!("select exactly one station security profile: wpa2 or wpa3");
 
-const RADIO_EVENT_DEPTH: usize = 8;
 const SCAN_RESULT_DEPTH: usize = 32;
 const RUNNER_BUDGET: WorkBudget =
     WorkBudget::try_new(8, 100_000).expect("non-zero incremental work budget");
@@ -58,10 +57,10 @@ const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
 
 type Uart0 = Uart<'static, hisi_hal::peripherals::Uart0<'static>>;
 
-declare_radio_storage!(static RADIO_STORAGE, events = RADIO_EVENT_DEPTH);
+declare_radio_storage!(static RADIO_STORAGE);
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
-static RADIO_PARTS: StaticCell<IncrementalRadioParts<RADIO_EVENT_DEPTH>> = StaticCell::new();
+static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
 static RUNNER_DIAGNOSTICS: Mutex<Cell<Option<IncrementalRunnerDiagnostics>>> =
     Mutex::new(Cell::new(None));
 static WAIT_DIAGNOSTICS: Mutex<Cell<Option<Ws63IncrementalWaitDiagnostics>>> =
@@ -145,7 +144,7 @@ fn main() -> ! {
 
 #[inline(never)]
 fn start_executor(
-    parts: &'static mut IncrementalRadioParts<RADIO_EVENT_DEPTH>,
+    parts: &'static mut IncrementalRadioParts,
     uart: &'static Uart0,
 ) -> ! {
     let IncrementalRadioParts { wifi, runner } = parts;
@@ -158,7 +157,7 @@ fn start_executor(
 
 #[embassy_executor::task]
 async fn radio_runner(
-    runner: &'static mut IncrementalRadioRunner<RADIO_EVENT_DEPTH>,
+    runner: &'static mut IncrementalRadioRunner,
     uart: &'static Uart0,
 ) {
     loop {
@@ -184,7 +183,7 @@ async fn radio_runner(
 
 #[embassy_executor::task]
 async fn connectivity(
-    controller: &'static mut WifiController<RADIO_EVENT_DEPTH>,
+    controller: &'static mut WifiController,
     device: &'static mut WifiDevice,
     uart: &'static Uart0,
 ) {
@@ -335,7 +334,7 @@ enum ExpectedEvent {
 
 async fn expect_event(
     uart: &Uart0,
-    controller: &mut WifiController<RADIO_EVENT_DEPTH>,
+    controller: &mut WifiController,
     expected: ExpectedEvent,
 ) {
     let event = with_timeout(Duration::from_secs(2), controller.next_event())
@@ -365,7 +364,7 @@ async fn expect_event(
     }
 }
 
-fn write_a5b_evidence(uart: &Uart0, controller: &WifiController<RADIO_EVENT_DEPTH>) {
+fn write_a5b_evidence(uart: &Uart0, controller: &WifiController) {
     let event = controller.event_diagnostics();
     uart.write(b"RFDBG_A5B_EVENT pending=0x");
     uart.write(&hex8(event.pending.min(u32::MAX as usize) as u32));
@@ -533,11 +532,11 @@ extern "C" fn SOFT_INT0() {
 }
 
 unsafe fn rtos_allocate(size: usize) -> *mut u8 {
-    unsafe { InstalledRadioStorage::<SelectedProfile, RADIO_EVENT_DEPTH>::allocate(size) }
+    unsafe { InstalledRadioStorage::allocate(size) }
 }
 
 unsafe fn rtos_deallocate(pointer: *mut u8) {
-    unsafe { InstalledRadioStorage::<SelectedProfile, RADIO_EVENT_DEPTH>::deallocate(pointer) };
+    unsafe { InstalledRadioStorage::deallocate(pointer) };
 }
 
 pub(crate) fn monotonic_ms() -> u64 {

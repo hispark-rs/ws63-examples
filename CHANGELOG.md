@@ -24,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   public control-storage plus arena pair with one `declare_radio_storage!`
   composition and admission step. Its host-side resource report now uses the
   WS63 RV32 layout rather than the build host's pointer width.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.53`; event capacity is now
+  owned by the selected profile and no longer appears in application control
+  types or the caller-owned storage declaration.
 - Made the embedded release profile explicit (`opt-level = "s"`, LTO, debug
   symbols, and one codegen unit), preventing parent-workspace profile drift from
   changing the WS63 SRAM/link layout.
