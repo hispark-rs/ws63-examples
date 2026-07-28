@@ -26,8 +26,8 @@ use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
 use hisi_rf::ws63::{
-    IncrementalRadioParts, IncrementalRadioRunner, InstalledRadioArena, SelectedProfile, Storage,
-    WifiDevice, Ws63IncrementalWaitDiagnostics, declare_radio_arena,
+    IncrementalRadioParts, IncrementalRadioRunner, InstalledRadioStorage, SelectedProfile,
+    WifiDevice, Ws63IncrementalWaitDiagnostics, declare_radio_storage,
 };
 use hisi_rf::{
     DiagnosticCode, IncrementalDriverEvent, IncrementalRunnerDiagnostics, Passphrase, RadioConfig,
@@ -58,8 +58,7 @@ const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
 
 type Uart0 = Uart<'static, hisi_hal::peripherals::Uart0<'static>>;
 
-static RADIO_STORAGE: Storage<SelectedProfile, RADIO_EVENT_DEPTH> = Storage::new();
-declare_radio_arena!(static RADIO_ARENA);
+declare_radio_storage!(static RADIO_STORAGE, events = RADIO_EVENT_DEPTH);
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
 static RADIO_PARTS: StaticCell<IncrementalRadioParts<RADIO_EVENT_DEPTH>> = StaticCell::new();
@@ -81,10 +80,9 @@ fn main() -> ! {
     Watchdog::new(p.WDT).disable();
     uart.write(b"\r\nRFDBG_CONNECTIVITY_BEGIN facade=hisi-rf\r\n");
 
-    let radio_arena = RADIO_ARENA
-        .claim_for::<SelectedProfile>()
-        .and_then(|arena| arena.install())
-        .expect("install shared RF arena");
+    let installed_storage = RADIO_STORAGE
+        .install()
+        .expect("install caller-owned radio storage");
     let mut delay = Delay::new();
     let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
     let (_cldo_crg, efuse) = rf_ready.into_parts();
@@ -126,6 +124,7 @@ fn main() -> ! {
     hisi_rtos::request_reschedule();
     uart.write(b"RF1_IMAGE_OK\r\n");
 
+    let (control_storage, radio_arena) = installed_storage.into_init_parts();
     let resources = hisi_rf::ws63::Resources::<SelectedProfile>::builder(efuse, radio_arena)
         .crypto(p.KM, p.SPACC, p.TRNG);
     #[cfg(feature = "wpa2")]
@@ -133,7 +132,7 @@ fn main() -> ! {
     #[cfg(feature = "wpa3")]
     let resources = resources.pke(p.PKE).build();
 
-    let controller = match hisi_rf::ws63::init(RadioConfig::default(), resources, &RADIO_STORAGE) {
+    let controller = match hisi_rf::ws63::init(RadioConfig::default(), resources, control_storage) {
         Ok(controller) => controller,
         Err(error) => {
             write_diagnostic(uart, b"RF2_INIT_ERR:", error.diagnostic());
@@ -534,11 +533,11 @@ extern "C" fn SOFT_INT0() {
 }
 
 unsafe fn rtos_allocate(size: usize) -> *mut u8 {
-    unsafe { InstalledRadioArena::<SelectedProfile>::allocate(size) }
+    unsafe { InstalledRadioStorage::<SelectedProfile, RADIO_EVENT_DEPTH>::allocate(size) }
 }
 
 unsafe fn rtos_deallocate(pointer: *mut u8) {
-    unsafe { InstalledRadioArena::<SelectedProfile>::deallocate(pointer) };
+    unsafe { InstalledRadioStorage::<SelectedProfile, RADIO_EVENT_DEPTH>::deallocate(pointer) };
 }
 
 pub(crate) fn monotonic_ms() -> u64 {
