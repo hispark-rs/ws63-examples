@@ -1,0 +1,7 @@
+[build]
+target = "riscv32imfc-unknown-none-elf"
+
+[target.riscv32imfc-unknown-none-elf]
+# WS63 vendor instructions and ROM callback veneers rely on fixed instruction
+# widths. Linker relaxation would invalidate their checked layout.
+rustflags = ["-C", "link-arg=--no-relax"]

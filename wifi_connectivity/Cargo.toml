@@ -1,0 +1,38 @@
+[package]
+name = "wifi_connectivity"
+version = "0.1.0"
+edition = "2024"
+description = "WS63 end-to-end Wi-Fi connectivity through the public hisi-rf facade"
+license = "MIT"
+
+[features]
+default = ["wpa2"]
+wpa2 = ["hisi-rf/profile-wifi-wpa2-smoltcp"]
+wpa3 = ["hisi-rf/profile-wifi-wpa3-smoltcp"]
+
+[dependencies]
+critical-section = "1"
+embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
+embassy-time = { version = "0.5", default-features = false }
+hisi-hal = { version = "0.7.0-alpha.3", features = ["chip-ws63", "unstable"] }
+hisi-panic-handler = { version = "0.1.0", default-features = false, features = ["panic-uart0"] }
+hisi-rf = { version = "=0.1.0-alpha.48", features = [
+    "chip-ws63",
+    "incremental-backend-experiment",
+    "incremental-embassy-wait",
+] }
+hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
+    "chip-ws63",
+    "bundled-memory-x",
+    "boot-header",
+    "ws63-bgle-32k",
+    "ws63-radio-main-stack-32k",
+] }
+hisi-rtos = { version = "0.1.0-alpha.14", features = ["embassy"] }
+smoltcp = { version = "0.13", default-features = false, features = [
+    "medium-ethernet",
+    "proto-ipv4",
+    "socket-dhcpv4",
+    "socket-icmp",
+] }
+static_cell = "2"

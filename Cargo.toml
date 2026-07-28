@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["blinky", "rtos_budget_enforcement", "rtos_embassy_coexist", "rtos_preemption", "rtos_priority_inheritance", "rtos_scheduler_stress"]
+members = ["blinky", "rtos_budget_enforcement", "rtos_embassy_coexist", "rtos_preemption", "rtos_priority_inheritance", "rtos_scheduler_stress", "wifi_connectivity"]
 
 [workspace.package]
 version = "0.1.0"
@@ -15,6 +15,12 @@ hisi-riscv-rt  = "0.5.4"
 riscv = "0.13"
 riscv-rt = "0.14"
 embedded-hal = "1.0.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+debug = true
+codegen-units = 1
 
 [patch.crates-io]
 hisi-rf-rtos-driver = { path = "../../crates/hisi-rf-rtos-driver" }

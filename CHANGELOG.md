@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added `wifi_connectivity`, the public `hisi-rf 0.1.0-alpha.48` end-to-end
+  example covering the incremental runner, scan/connect, smoltcp DHCP, repeated
+  ICMP, and lease renewal.
+- Added a pinned official nightly and a repository-local Cargo target/linker
+  contract so this release unit builds independently of the parent workspace.
+
 ### Changed
 
+- Made the embedded release profile explicit (`opt-level = "s"`, LTO, debug
+  symbols, and one codegen unit), preventing parent-workspace profile drift from
+  changing the WS63 SRAM/link layout.
 - Migrated every example from the retired `hisi-riscv-hal` package and
   `hisi_riscv_hal` import path to `hisi-hal 0.7.0-alpha.1` / `hisi_hal`.
 - **dma_loopback** — retargeted part 2 (mem->mem) from the secure DMA (SDMA
