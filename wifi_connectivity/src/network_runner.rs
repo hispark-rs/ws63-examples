@@ -163,6 +163,8 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(b"\r\n");
     uart.write(b"RFDBG_A5B_DATA_PATH tx=0x");
     uart.write(&hex8(data_path.tx_frames));
+    uart.write(b" path_caps=0x");
+    uart.write(&hex8(data_path.instrumented_capabilities));
     uart.write(b" tx_failed=0x");
     uart.write(&hex8(data_path.tx_failed));
     uart.write(b" vendor_tx=0x");
