@@ -14,6 +14,7 @@ use super::{Uart0, halt, hex8, monotonic_ms, write_ipv4};
 
 const DHCP_TIMEOUT_MS: u64 = 30_000;
 const DHCP_SMOKE_MAX_LEASE_SECS: u64 = 20;
+const DHCP_RECOVERY_RESTART_MS: u64 = 10_000;
 const POLL_INTERVAL_MS: u64 = 10;
 const PING_TIMEOUT_MS: u64 = 1_000;
 const PING_COUNT: u16 = 5;
@@ -182,9 +183,21 @@ async fn keep_polling(
 ) -> ! {
     let mut heartbeat_at = monotonic_ms().saturating_add(10_000);
     let mut renew_reported = false;
+    let mut dhcp_restart_at = None;
     loop {
         poll_network(uart, interface, device, sockets, dhcp_handle, lease);
         let current = monotonic_ms();
+        if lease.is_some() {
+            dhcp_restart_at = None;
+        } else if let Some(restart_at) = dhcp_restart_at {
+            if current >= restart_at {
+                sockets.get_mut::<dhcpv4::Socket>(dhcp_handle).reset();
+                uart.write(b"A4_DHCP_RESTART reason=lease-down-timeout\r\n");
+                dhcp_restart_at = Some(current.saturating_add(DHCP_RECOVERY_RESTART_MS));
+            }
+        } else {
+            dhcp_restart_at = Some(current.saturating_add(DHCP_RECOVERY_RESTART_MS));
+        }
         let dhcp = device.dhcp_diagnostics();
         if !renew_reported
             && dhcp.client_packets > dhcp_baseline.client_packets
