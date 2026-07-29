@@ -210,7 +210,8 @@ fn poll_network(
     lease: &mut Option<Lease>,
 ) {
     let _ = interface.poll(now(), device, sockets);
-    match sockets.get_mut::<dhcpv4::Socket>(dhcp_handle).poll() {
+    let dhcp = sockets.get_mut::<dhcpv4::Socket>(dhcp_handle);
+    match dhcp.poll() {
         Some(dhcpv4::Event::Configured(config)) => {
             let next = Lease {
                 address: config.address.address(),
@@ -249,10 +250,18 @@ fn poll_network(
             *lease = Some(next);
         }
         Some(dhcpv4::Event::Deconfigured) => {
+            let had_lease = lease.take().is_some();
             interface.update_ip_addrs(|addresses| addresses.clear());
             interface.routes_mut().remove_default_ipv4_route();
-            *lease = None;
             uart.write(b"A4_DHCP_DECONFIGURED\r\n");
+            if had_lease {
+                // A lease expiry already transitions smoltcp back toward
+                // discovery, but an explicit reset also clears any stale
+                // renewal/rebinding schedule and makes the next DISCOVER
+                // immediately eligible.
+                dhcp.reset();
+                uart.write(b"A4_DHCP_RESTART reason=lease-lost\r\n");
+            }
         }
         None => {}
     }

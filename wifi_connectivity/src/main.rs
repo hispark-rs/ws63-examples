@@ -269,6 +269,7 @@ async fn connectivity(
         Ok(Ok(_)) => {}
         Ok(Err(error)) => {
             write_controller_error(uart, b"RF5B_CONNECT_ERR:", error);
+            write_a5b_evidence(uart, controller, device);
             halt()
         }
         Err(_) => {
