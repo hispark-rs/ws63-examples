@@ -396,7 +396,15 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDe
     uart.write(&hex8(frw_sync.max_msg_id));
     uart.write(b" max_elapsed_ms=0x");
     uart.write(&hex8(frw_sync.max_elapsed_ms));
+    uart.write(b" wait_blocks=0x");
+    uart.write(&hex8(frw_sync.last_wait_blocks));
+    uart.write(b" wait_wakeups=0x");
+    uart.write(&hex8(frw_sync.last_wait_wakeups));
+    uart.write(b" wait_ready=0x");
+    uart.write(&hex8(frw_sync.last_wait_ready_checks));
     uart.write(b"\r\n");
+
+    write_rtos_task_diagnostics(uart);
 
     let association = hisi_rf::ws63::association_timing_diagnostics();
     uart.write(b"RFDBG_A5B_CONNECT_ASSOC_IOCTL");
@@ -418,6 +426,43 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDe
         uart.write(&hex8(value));
     }
     uart.write(b"\r\nRFDBG_A5B_CONNECT_PROFILE_OK\r\n");
+}
+
+fn write_rtos_task_diagnostics(uart: &Uart0) {
+    let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 17];
+    let count = hisi_rtos::task_diagnostics(&mut tasks);
+    for task in &tasks[..count] {
+        uart.write(b"RFDBG_A5B_TASK id=0x");
+        uart.write(&hex8(task.task as u32));
+        uart.write(b" state=");
+        uart.write(task_state_name(task.state));
+        uart.write(b" entry=0x");
+        uart.write(&hex8(task.entry as u32));
+        uart.write(b" base_prio=0x");
+        uart.write(&hex8(u32::from(task.base_priority)));
+        uart.write(b" prio=0x");
+        uart.write(&hex8(u32::from(task.priority)));
+        uart.write(b" wait_sem=0x");
+        uart.write(&hex8(task.waiting_sem as u32));
+        uart.write(b" wake_at=0x");
+        uart.write(&hex8(task.wake_at as u32));
+        uart.write(b" dispatches=0x");
+        uart.write(&hex8(task.dispatches));
+        uart.write(b" max_ready_ms=0x");
+        uart.write(&hex8(task.max_ready_latency_ms as u32));
+        uart.write(b"\r\n");
+    }
+}
+
+const fn task_state_name(state: hisi_rtos::TaskState) -> &'static [u8] {
+    match state {
+        hisi_rtos::TaskState::Free => b"free",
+        hisi_rtos::TaskState::Ready => b"ready",
+        hisi_rtos::TaskState::Running => b"running",
+        hisi_rtos::TaskState::Blocked => b"blocked",
+        hisi_rtos::TaskState::Sleeping => b"sleeping",
+        hisi_rtos::TaskState::Throttled => b"throttled",
+    }
 }
 
 fn write_runner_diagnostics(uart: &Uart0, diagnostics: hisi_rf::IncrementalRunnerDiagnostics) {

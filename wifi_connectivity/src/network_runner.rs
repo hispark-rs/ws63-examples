@@ -146,6 +146,8 @@ pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
     .await;
 
     let queue = device.rx_queue_diagnostics();
+    let dhcp = device.dhcp_diagnostics();
+    let data_path = device.data_path_diagnostics();
     uart.write(b"RF5C_CONNECTIVITY_SUMMARY gateway_tx=0x");
     uart.write(&hex8(gateway_stats.tx));
     uart.write(b" gateway_rx=0x");
@@ -157,6 +159,32 @@ pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
     uart.write(b" rx_queue_drop=0x");
     uart.write(&hex8(queue.dropped));
     uart.write(b"\r\n");
+    uart.write(b"RFDBG_A5B_DATA_PATH tx=0x");
+    uart.write(&hex8(data_path.tx_frames));
+    uart.write(b" tx_failed=0x");
+    uart.write(&hex8(data_path.tx_failed));
+    uart.write(b" rx=0x");
+    uart.write(&hex8(data_path.rx_frames));
+    uart.write(b" rx_pending=0x");
+    uart.write(&hex8(queue.pending.min(u32::MAX as usize) as u32));
+    uart.write(b" rx_high_water=0x");
+    uart.write(&hex8(queue.high_watermark.min(u32::MAX as usize) as u32));
+    uart.write(b" icmp_rx=0x");
+    uart.write(&hex8(queue.icmp_echo_replies));
+    uart.write(b" icmp_mask=0x");
+    uart.write(&hex8(queue.icmp_sequence_mask));
+    uart.write(b" dhcp_tx=0x");
+    uart.write(&hex8(dhcp.client_packets));
+    uart.write(b" dhcp_rx=0x");
+    uart.write(&hex8(dhcp.server_packets));
+    uart.write(b" irq40=0x");
+    uart.write(&hex8(data_path.coex_wlan_irqs));
+    uart.write(b" irq44=0x");
+    uart.write(&hex8(data_path.wlphy_irqs));
+    uart.write(b" irq45=0x");
+    uart.write(&hex8(data_path.wlmac_irqs));
+    uart.write(b"\r\n");
+    super::write_rtos_task_diagnostics(uart);
     uart.write(b"A4_NET_RUNNER_STEADY lease=managed neighbor_cache=managed\r\n");
     uart.flush_tx();
 
