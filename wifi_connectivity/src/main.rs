@@ -51,9 +51,8 @@ type Uart0 = Uart<'static, hisi_hal::peripherals::Uart0<'static>>;
 declare_radio_storage!(static RADIO_STORAGE);
 static RTOS_STORAGE: hisi_rtos::SchedulerStorage<15> = hisi_rtos::SchedulerStorage::new();
 #[cfg_attr(target_arch = "riscv32", unsafe(link_section = ".hisi.shared-arena"))]
-static RTOS_STACKS: hisi_rtos::SchedulerStackArena<
-    { hisi_rf::ws63::SELECTED_TASK_STACK_ARENA_BYTES },
-> = hisi_rtos::SchedulerStackArena::new();
+static RTOS_ARENA: hisi_rtos::SchedulerArena<{ hisi_rf::ws63::SELECTED_RUNTIME_ARENA_BYTES }> =
+    hisi_rtos::SchedulerArena::new();
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
 static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
@@ -80,7 +79,7 @@ fn main() -> ! {
         .install()
         .expect("install caller-owned radio storage");
     let scheduler_storage = RTOS_STORAGE
-        .install(&RTOS_STACKS)
+        .install(&RTOS_ARENA)
         .expect("install caller-owned scheduler storage");
     let mut delay = Delay::new();
     let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
@@ -126,6 +125,7 @@ fn main() -> ! {
         Ok(controller) => controller,
         Err(error) => {
             write_diagnostic(uart, b"RF2_INIT_ERR:", error.diagnostic());
+            write_heap_diagnostics(uart);
             halt()
         }
     };
@@ -594,6 +594,34 @@ fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic
         uart.write(b" backend=0x");
         uart.write(&hex8(code));
     }
+    uart.write(b"\r\n");
+}
+
+fn write_heap_diagnostics(uart: &Uart0) {
+    let scheduler = RTOS_STORAGE.metrics();
+    let radio = hisi_rf::ws63::rf_heap_metrics();
+    uart.write(b"RFDBG_HEAP rtos_arena=0x");
+    uart.write(&hex8(scheduler.arena_bytes as u32));
+    uart.write(b" rtos_used=0x");
+    uart.write(&hex8(scheduler.used_bytes as u32));
+    uart.write(b" rtos_free=0x");
+    uart.write(&hex8(scheduler.free_bytes as u32));
+    uart.write(b" rtos_peak=0x");
+    uart.write(&hex8(scheduler.peak_used_bytes as u32));
+    uart.write(b" rtos_allocs=0x");
+    uart.write(&hex8(scheduler.allocation_attempts as u32));
+    uart.write(b" rtos_failures=0x");
+    uart.write(&hex8(scheduler.allocation_failures as u32));
+    uart.write(b" rf_arena=0x");
+    uart.write(&hex8(radio.arena_bytes as u32));
+    uart.write(b" rf_used=0x");
+    uart.write(&hex8(radio.used_bytes as u32));
+    uart.write(b" rf_free=0x");
+    uart.write(&hex8(radio.free_bytes as u32));
+    uart.write(b" rf_peak=0x");
+    uart.write(&hex8(radio.peak_used_bytes as u32));
+    uart.write(b" rf_failures=0x");
+    uart.write(&hex8(radio.allocation_failures as u32));
     uart.write(b"\r\n");
 }
 

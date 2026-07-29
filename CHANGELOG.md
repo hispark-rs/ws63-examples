@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Updated `wifi_connectivity` to `hisi-rtos 0.1.0-alpha.15` and the native WS63
   scheduler-port facade. The example no longer owns TIMER_INT0/SOFT_INT0
   handler bodies, `SchedulerPort` wiring, or global-interrupt startup.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.68` and
+  `hisi-rtos 0.1.0-alpha.17`. Caller-owned scheduler memory now uses
+  `SchedulerArena`, including the HIL-derived synchronization-object headroom
+  instead of reserving task stacks alone.
 
 ### Added
 
