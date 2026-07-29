@@ -157,6 +157,7 @@ pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
     uart.write(&hex8(queue.dropped));
     uart.write(b"\r\n");
     uart.write(b"A4_NET_RUNNER_STEADY lease=managed neighbor_cache=managed\r\n");
+    uart.flush_tx();
 
     keep_polling(
         uart,
