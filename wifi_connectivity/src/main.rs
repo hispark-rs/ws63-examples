@@ -23,9 +23,8 @@ use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
 use hisi_rf::ws63::{
-    IncrementalRadioParts, IncrementalRadioRunner, InstalledRadioStorage,
-    RunnerDiagnosticsSnapshot, SelectedProfile, WaitDiagnosticsSnapshot, WifiDevice,
-    declare_radio_storage,
+    IncrementalRadioParts, IncrementalRadioRunner, RunnerDiagnosticsSnapshot, SelectedProfile,
+    WaitDiagnosticsSnapshot, WifiDevice, declare_radio_storage,
 };
 use hisi_rf::{
     DiagnosticCode, IncrementalDriverEvent, Passphrase, ScanConfig, ScanResult, StationConfig,
@@ -50,6 +49,11 @@ use config::{
 type Uart0 = Uart<'static, hisi_hal::peripherals::Uart0<'static>>;
 
 declare_radio_storage!(static RADIO_STORAGE);
+static RTOS_STORAGE: hisi_rtos::SchedulerStorage<15> = hisi_rtos::SchedulerStorage::new();
+#[cfg_attr(target_arch = "riscv32", unsafe(link_section = ".hisi.shared-arena"))]
+static RTOS_STACKS: hisi_rtos::SchedulerStackArena<
+    { hisi_rf::ws63::SELECTED_TASK_STACK_ARENA_BYTES },
+> = hisi_rtos::SchedulerStackArena::new();
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
 static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
@@ -75,6 +79,9 @@ fn main() -> ! {
     let installed_storage = RADIO_STORAGE
         .install()
         .expect("install caller-owned radio storage");
+    let scheduler_storage = RTOS_STORAGE
+        .install(&RTOS_STACKS)
+        .expect("install caller-owned scheduler storage");
     let mut delay = Delay::new();
     let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
     let (_cldo_crg, efuse) = rf_ready.into_parts();
@@ -88,10 +95,7 @@ fn main() -> ! {
         hisi_rtos::ws63::Resources {
             timer: p.TIMER,
             software_interrupt: p.SYS_CTL1,
-            allocator: hisi_rtos::ws63::Allocator {
-                allocate: rtos_allocate,
-                deallocate: rtos_deallocate,
-            },
+            storage: scheduler_storage,
             contract_violation: rtos_contract_violation,
             irqs: RtosIrqs::new(),
         },
@@ -591,14 +595,6 @@ fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic
         uart.write(&hex8(code));
     }
     uart.write(b"\r\n");
-}
-
-unsafe fn rtos_allocate(size: usize) -> *mut u8 {
-    unsafe { InstalledRadioStorage::allocate(size) }
-}
-
-unsafe fn rtos_deallocate(pointer: *mut u8) {
-    unsafe { InstalledRadioStorage::deallocate(pointer) };
 }
 
 pub(crate) fn monotonic_ms() -> u64 {
