@@ -1,7 +1,7 @@
 //! Application-owned long-lived IPv4 runner for the connectivity contract.
 
 use embassy_time::{Duration as EmbassyDuration, Timer};
-use hisi_rf::ws63::{DhcpDiagnostics, WifiDevice, station_mac_address};
+use hisi_rf::ws63::{DhcpDiagnostics, WifiDevice};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
 use smoltcp::phy::{ChecksumCapabilities, Device};
 use smoltcp::socket::{dhcpv4, icmp};
@@ -43,7 +43,7 @@ struct PingStats {
 
 /// Own the L2 device and IP state for the rest of the firmware lifetime.
 pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
-    let Some(mac) = station_mac_address() else {
+    let Some(mac) = device.station_mac_address() else {
         uart.write(b"A4_NET_ERR:no-mac\r\n");
         halt()
     };

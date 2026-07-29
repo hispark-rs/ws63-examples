@@ -32,6 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   settings into its local `config` module, and adopted distinct typed
   operation/backend timeout contracts. The older compatibility smoke was
   migrated to the same public timeout API.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.55`; the smoltcp runner
+  now obtains its station MAC from its own initialized `WifiDevice` instead of
+  a process-global netif accessor.
 - Made the embedded release profile explicit (`opt-level = "s"`, LTO, debug
   symbols, and one codegen unit), preventing parent-workspace profile drift from
   changing the WS63 SRAM/link layout.
