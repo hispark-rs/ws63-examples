@@ -9,13 +9,14 @@ license = "MIT"
 default = ["wpa2"]
 wpa2 = ["hisi-rf/profile-wifi-wpa2-smoltcp"]
 wpa3 = ["hisi-rf/profile-wifi-wpa3-smoltcp"]
+data-path-diagnostics = ["hisi-rf/ws63-data-path-diagnostics"]
 
 [dependencies]
 embassy-executor = { version = "0.10", features = ["platform-riscv32", "executor-thread"] }
 embassy-time = { version = "0.5", default-features = false }
 hisi-hal = { version = "0.7.0-alpha.3", features = ["chip-ws63", "unstable"] }
 hisi-panic-handler = { version = "0.1.0", default-features = false, features = ["panic-uart0"] }
-hisi-rf = { version = "=0.1.0-alpha.57", features = [
+hisi-rf = { version = "=0.1.0-alpha.59", features = [
     "chip-ws63",
     "incremental-backend-experiment",
     "incremental-embassy-wait",

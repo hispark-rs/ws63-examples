@@ -6,12 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.57` and replaced its
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.59` and replaced its
   process-global runner/wait diagnostic cells with the facade-owned,
   task-split-safe unified snapshot.
 - Extended the post-ping diagnostic marker through the complete v4 data-path
   chain: smoltcp TX, vendor bridge TX, DMAC completion, vendor/Rust RX, MAC
   receive counters, and IRQ dispatches.
+- Added an opt-in `data-path-diagnostics` feature so HIL can activate the
+  vendor entry-point instrumentation without changing the normal WPA profiles.
 
 ### Added
 
