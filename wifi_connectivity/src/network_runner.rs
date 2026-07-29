@@ -1,6 +1,7 @@
 //! Application-owned long-lived IPv4 runner for the connectivity contract.
 
 use embassy_time::{Duration as EmbassyDuration, Timer};
+use hisi_rf::WifiController;
 use hisi_rf::ws63::{DhcpDiagnostics, WifiDevice};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
 use smoltcp::phy::{ChecksumCapabilities, Device};
@@ -43,7 +44,7 @@ struct PingStats {
 }
 
 /// Own the L2 device and IP state for the rest of the firmware lifetime.
-pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
+pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut WifiDevice) -> ! {
     let Some(mac) = device.station_mac_address() else {
         uart.write(b"A4_NET_ERR:no-mac\r\n");
         halt()
@@ -145,9 +146,10 @@ pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
     )
     .await;
 
-    let queue = device.rx_queue_diagnostics();
-    let dhcp = device.dhcp_diagnostics();
-    let data_path = device.data_path_diagnostics();
+    let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
+    let queue = diagnostics.rx_queue;
+    let dhcp = diagnostics.dhcp;
+    let data_path = diagnostics.data_path;
     uart.write(b"RF5C_CONNECTIVITY_SUMMARY gateway_tx=0x");
     uart.write(&hex8(gateway_stats.tx));
     uart.write(b" gateway_rx=0x");

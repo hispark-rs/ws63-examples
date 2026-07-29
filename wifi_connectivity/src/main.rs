@@ -299,7 +299,7 @@ async fn connectivity(
     }
     expect_event(uart, controller, ExpectedEvent::Connected).await;
     write_a5b_evidence(uart, controller, device);
-    network_runner::run(uart, device).await
+    network_runner::run(uart, controller, device).await
 }
 
 enum ExpectedEvent {
