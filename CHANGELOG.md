@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   chain: smoltcp TX, vendor bridge TX, DMAC completion, vendor/Rust RX, MAC
   receive counters, IRQ dispatches, and an explicit instrumentation capability
   mask.
+- Updated `wifi_connectivity` to the v6 aggregate diagnostics in
+  `hisi-rf 0.1.0-alpha.64`; the post-ping marker now reports the active WLMAC
+  packed receive-filter control plus secret-free station-match and BSSID-programmed
+  state.
 - Added an opt-in `data-path-diagnostics` feature so HIL can activate the
   vendor entry-point instrumentation without changing the normal WPA profiles.
 - Added an opt-in `diagnostic-disable-sta-pm` A/B profile. It requires a

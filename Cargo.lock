@@ -54,7 +54,7 @@ name = "blinky"
 version = "0.1.0"
 dependencies = [
  "embedded-hal 1.0.0",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-riscv-rt 0.5.7",
  "riscv",
  "ws63-pac",
@@ -615,7 +615,7 @@ checksum = "fdc966b600ba8e8d5d944cc6bd93e10e519715042ad46b657b151d7eef5cc761"
 dependencies = [
  "critical-section",
  "hisi-crypto",
- "hisi-hal 0.7.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rom-sys",
  "ws63-pac",
  "zeroize",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "hisi-hal"
-version = "0.7.0-alpha.4"
+version = "0.7.0-alpha.6"
 dependencies = [
  "bs2x-pac",
  "cfg-if",
@@ -640,9 +640,9 @@ dependencies = [
 
 [[package]]
 name = "hisi-hal"
-version = "0.7.0-alpha.4"
+version = "0.7.0-alpha.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89357dd63d3cb69b430b7f35302ca7ae9f08313b872fa327a171d20182e545ec"
+checksum = "aa948b076893aa7e24d6a48297b53d2cb7f2dac361b933cf87595b61e27a29cd"
 dependencies = [
  "bs2x-pac",
  "cfg-if",
@@ -678,9 +678,9 @@ checksum = "82838ac70a30951282f15df5741eeb38f748f5347d419c91b93751ceccc49876"
 
 [[package]]
 name = "hisi-rf"
-version = "0.1.0-alpha.63"
+version = "0.1.0-alpha.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2adafd29327a4f1bdfa52ac033a003e211810a0b51b2014a60140b3efd9fd854"
+checksum = "ba777b22b839756592b7491d934f2b44d3a15ed10af5b0271679f047b61fedac"
 dependencies = [
  "hisi-rf-core",
  "hisi-rf-ws63",
@@ -712,9 +712,9 @@ dependencies = [
 
 [[package]]
 name = "hisi-rf-ws63"
-version = "0.1.0-alpha.52"
+version = "0.1.0-alpha.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79aae1324c9ecaa89d0241408241f2caa461fe992d094fb1a632721e2fdcbe8c"
+checksum = "42686396b8aff24af35f40f691da0420db6ac9d243ce431f17ef4da75e348846"
 dependencies = [
  "ar_archive_writer",
  "critical-section",
@@ -723,7 +723,7 @@ dependencies = [
  "hisi-alloc 0.1.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-crypto",
  "hisi-crypto-ws63",
- "hisi-hal 0.7.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-nvs",
  "hisi-rf-core",
  "hisi-rf-rtos-driver",
@@ -1137,7 +1137,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.2",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1152,7 +1152,7 @@ dependencies = [
  "embassy-executor",
  "embassy-time",
  "hisi-alloc 0.1.0-alpha.2",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1166,7 +1166,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.2",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1179,7 +1179,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.2",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1192,7 +1192,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.2",
- "hisi-hal 0.7.0-alpha.4",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1539,7 +1539,7 @@ version = "0.1.0"
 dependencies = [
  "embassy-executor",
  "embassy-time",
- "hisi-hal 0.7.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-panic-handler 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf",
  "hisi-riscv-rt 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1586,7 +1586,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "ws63-pac"
-version = "0.4.1"
+version = "0.4.3"
 dependencies = [
  "critical-section",
  "riscv",

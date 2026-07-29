@@ -183,6 +183,14 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.mac_rx_failed_mpdu));
     uart.write(b" mac_rx_filter=0x");
     uart.write(&hex8(data_path.mac_rx_filtered_mpdu));
+    uart.write(b" rx_filter_ctl=0x");
+    uart.write(&hex8(data_path.mac_rx_filter_control));
+    uart.write(b" sta_addr_match=0x");
+    uart.write(&hex8(u32::from(
+        data_path.mac_station_address_matches_device,
+    )));
+    uart.write(b" bssid_programmed=0x");
+    uart.write(&hex8(u32::from(data_path.mac_bssid_programmed)));
     uart.write(b" rx_pending=0x");
     uart.write(&hex8(queue.pending.min(u32::MAX as usize) as u32));
     uart.write(b" rx_high_water=0x");
