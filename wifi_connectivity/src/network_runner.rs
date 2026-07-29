@@ -171,6 +171,8 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.vendor_tx_frames));
     uart.write(b" tx_complete=0x");
     uart.write(&hex8(data_path.tx_completions));
+    uart.write(b" dmac_rx=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepares));
     uart.write(b" vendor_rx=0x");
     uart.write(&hex8(data_path.vendor_rx_frames));
     uart.write(b" rx=0x");
