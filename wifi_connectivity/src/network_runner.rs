@@ -8,7 +8,7 @@ use smoltcp::socket::{dhcpv4, udp};
 use smoltcp::time::{Duration, Instant};
 use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
 
-use super::config::PUBLIC_DNS_TARGET;
+use super::config::PUBLIC_DNS_TARGETS;
 use super::dns_contract::{ResponseError as DnsResponseError, build_query, validate_response};
 use super::{Uart0, halt, hex8, monotonic_ms, write_ipv4};
 
@@ -17,18 +17,26 @@ const DHCP_SMOKE_MAX_LEASE_SECS: u64 = 20;
 const DHCP_RECOVERY_RESTART_MS: u64 = 10_000;
 const POLL_INTERVAL_MS: u64 = 10;
 const DNS_TRANSACTION_BASE: u16 = 0x5753;
-const DNS_ATTEMPTS: u16 = 3;
+const DNS_ATTEMPTS_PER_TARGET: u16 = 2;
 const DNS_LOCAL_PORT: u16 = 49_153;
 const DNS_PORT: u16 = 53;
 const DNS_TIMEOUT_MS: u64 = 1_500;
 const DNS_RX_BUFFER_BYTES: usize = 256;
 const DNS_TX_BUFFER_BYTES: usize = 32;
-const PUBLIC_TARGET: Ipv4Address = Ipv4Address::new(
-    PUBLIC_DNS_TARGET[0],
-    PUBLIC_DNS_TARGET[1],
-    PUBLIC_DNS_TARGET[2],
-    PUBLIC_DNS_TARGET[3],
-);
+const PUBLIC_TARGETS: [Ipv4Address; 2] = [
+    Ipv4Address::new(
+        PUBLIC_DNS_TARGETS[0][0],
+        PUBLIC_DNS_TARGETS[0][1],
+        PUBLIC_DNS_TARGETS[0][2],
+        PUBLIC_DNS_TARGETS[0][3],
+    ),
+    Ipv4Address::new(
+        PUBLIC_DNS_TARGETS[1][0],
+        PUBLIC_DNS_TARGETS[1][1],
+        PUBLIC_DNS_TARGETS[1][2],
+        PUBLIC_DNS_TARGETS[1][3],
+    ),
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Lease {
@@ -43,6 +51,7 @@ struct DnsStats {
     responses: u32,
     invalid: u32,
     tx_errors: u32,
+    successful_target: Option<Ipv4Address>,
 }
 
 /// Own the L2 device and IP state for the rest of the firmware lifetime.
@@ -122,7 +131,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         dhcp_handle,
         dns_handle,
         &mut lease,
-        PUBLIC_TARGET,
+        &PUBLIC_TARGETS,
     )
     .await;
     let l2_gate = device.l2_protocol_diagnostics();
@@ -148,7 +157,11 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     } else {
         uart.write(b"RF5C_PUBLIC_DNS_OK target=");
     }
-    write_ipv4(uart, PUBLIC_TARGET.octets());
+    if let Some(target) = dns_stats.successful_target {
+        write_ipv4(uart, target.octets());
+    } else {
+        uart.write(b"none");
+    }
     uart.write(b" attempts=0x");
     uart.write(&hex8(dns_stats.attempts));
     uart.write(b" responses=0x");
@@ -387,18 +400,22 @@ async fn dns_probe(
     dhcp_handle: SocketHandle,
     dns_handle: SocketHandle,
     lease: &mut Option<Lease>,
-    target: Ipv4Address,
+    targets: &[Ipv4Address],
 ) -> DnsStats {
     let mut stats = DnsStats::default();
-    let remote = IpEndpoint::new(IpAddress::Ipv4(target), DNS_PORT);
+    let total_attempts = DNS_ATTEMPTS_PER_TARGET.saturating_mul(targets.len() as u16);
 
-    uart.write(b"RF5C_PUBLIC_DNS_BEGIN target=");
-    write_ipv4(uart, target.octets());
+    uart.write(b"RF5C_PUBLIC_DNS_BEGIN primary=");
+    write_ipv4(uart, targets[0].octets());
+    uart.write(b" secondary=");
+    write_ipv4(uart, targets[1].octets());
     uart.write(b" attempts=0x");
-    uart.write(&hex8(u32::from(DNS_ATTEMPTS)));
+    uart.write(&hex8(u32::from(total_attempts)));
     uart.write(b"\r\n");
 
-    for attempt in 1..=DNS_ATTEMPTS {
+    for attempt in 1..=total_attempts {
+        let target = targets[usize::from(attempt - 1) % targets.len()];
+        let remote = IpEndpoint::new(IpAddress::Ipv4(target), DNS_PORT);
         let transaction_id = DNS_TRANSACTION_BASE.wrapping_add(attempt);
         let query = build_query(transaction_id);
         let sent = sockets
@@ -407,7 +424,7 @@ async fn dns_probe(
         stats.attempts = stats.attempts.saturating_add(1);
         if sent.is_err() {
             stats.tx_errors = stats.tx_errors.saturating_add(1);
-            write_dns_sample_prefix(uart, attempt, transaction_id);
+            write_dns_sample_prefix(uart, attempt, transaction_id, target);
             uart.write(b" status=tx_error\r\n");
             continue;
         }
@@ -428,7 +445,8 @@ async fn dns_probe(
                 match validate_response(response, transaction_id) {
                     Ok(valid) => {
                         stats.responses = stats.responses.saturating_add(1);
-                        write_dns_sample_prefix(uart, attempt, transaction_id);
+                        stats.successful_target = Some(target);
+                        write_dns_sample_prefix(uart, attempt, transaction_id, target);
                         uart.write(b" status=ok answers=0x");
                         uart.write(&hex8(u32::from(valid.answer_count)));
                         uart.write(b"\r\n");
@@ -437,7 +455,7 @@ async fn dns_probe(
                     }
                     Err(error) => {
                         stats.invalid = stats.invalid.saturating_add(1);
-                        write_dns_sample_prefix(uart, attempt, transaction_id);
+                        write_dns_sample_prefix(uart, attempt, transaction_id, target);
                         uart.write(b" status=invalid reason=");
                         uart.write(dns_error_name(error));
                         uart.write(b"\r\n");
@@ -452,17 +470,19 @@ async fn dns_probe(
         if accepted {
             break;
         }
-        write_dns_sample_prefix(uart, attempt, transaction_id);
+        write_dns_sample_prefix(uart, attempt, transaction_id, target);
         uart.write(b" status=timeout\r\n");
     }
     stats
 }
 
-fn write_dns_sample_prefix(uart: &Uart0, attempt: u16, transaction_id: u16) {
+fn write_dns_sample_prefix(uart: &Uart0, attempt: u16, transaction_id: u16, target: Ipv4Address) {
     uart.write(b"RF5C_PUBLIC_DNS_SAMPLE attempt=0x");
     uart.write(&hex8(u32::from(attempt)));
     uart.write(b" txid=0x");
     uart.write(&hex8(u32::from(transaction_id)));
+    uart.write(b" target=");
+    write_ipv4(uart, target.octets());
 }
 
 fn dns_error_name(error: DnsResponseError) -> &'static [u8] {

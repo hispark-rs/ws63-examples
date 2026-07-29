@@ -15,8 +15,8 @@ pub const SCAN_WAIT_DEADLINE: Duration = Duration::from_secs(30);
 pub const CONNECT_WAIT_DEADLINE: Duration = Duration::from_secs(90);
 pub const EVENT_WAIT_DEADLINE: Duration = Duration::from_secs(2);
 
-/// AliDNS is the default routed UDP connectivity target.
-pub const PUBLIC_DNS_TARGET: [u8; 4] = [223, 5, 5, 5];
+/// Public DNS targets used to prove routed UDP connectivity.
+pub const PUBLIC_DNS_TARGETS: [[u8; 4]; 2] = [[223, 5, 5, 5], [180, 76, 76, 76]];
 
 pub const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
     Some(value) => value.as_bytes(),
