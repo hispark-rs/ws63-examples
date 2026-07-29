@@ -214,14 +214,17 @@ async fn connectivity(
                 if retries == 0
                     && error.diagnostic().code() == DiagnosticCode::OperationTimeout =>
             {
+                write_scan_diagnostics(uart, controller, device, 1);
                 retries = 1;
                 Timer::after(Duration::from_millis(250)).await;
             }
             Ok(Err(error)) => {
+                write_scan_diagnostics(uart, controller, device, u32::from(retries) + 1);
                 write_controller_error(uart, b"RF3_SCAN_ERR", error);
                 halt()
             }
             Err(_) => {
+                write_scan_diagnostics(uart, controller, device, u32::from(retries) + 1);
                 uart.write(b"RF3_SCAN_ERR reason=outer_timeout\r\n");
                 halt()
             }
@@ -541,6 +544,38 @@ fn write_runner_event(uart: &Uart0, event: IncrementalDriverEvent) {
         IncrementalDriverEvent::Cancelled { .. } => uart.write(b"cancelled"),
         IncrementalDriverEvent::Failed { .. } => uart.write(b"failed"),
     }
+    uart.write(b"\r\n");
+}
+
+fn write_scan_diagnostics(
+    uart: &Uart0,
+    controller: &WifiController,
+    device: &WifiDevice,
+    attempt: u32,
+) {
+    let scan = hisi_rf::ws63::diagnostics(controller, device).scan;
+    uart.write(b"RFDBG_SCAN_DIAG attempt=0x");
+    uart.write(&hex8(attempt));
+    uart.write(b" native_starts=0x");
+    uart.write(&hex8(scan.native_starts));
+    uart.write(b" native_results=0x");
+    uart.write(&hex8(scan.native_results));
+    uart.write(b" native_done=0x");
+    uart.write(&hex8(scan.native_done));
+    uart.write(b" native_active=0x");
+    uart.write(&hex8(u32::from(scan.native_active)));
+    uart.write(b" queue_pending=0x");
+    uart.write(&hex8(u32::from(scan.queue_pending)));
+    uart.write(b" queue_dropped=0x");
+    uart.write(&hex8(scan.queue_dropped));
+    uart.write(b" driver_active=0x");
+    uart.write(&hex8(u32::from(scan.driver_active)));
+    uart.write(b" driver_done=0x");
+    uart.write(&hex8(u32::from(scan.driver_done)));
+    uart.write(b" driver_results=0x");
+    uart.write(&hex8(scan.driver_results));
+    uart.write(b" driver_status=0x");
+    uart.write(&hex8(scan.driver_status));
     uart.write(b"\r\n");
 }
 

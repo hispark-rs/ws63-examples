@@ -11,6 +11,7 @@ use smoltcp::wire::{
     EthernetAddress, HardwareAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr, Ipv4Address,
 };
 
+use super::config::PUBLIC_ICMP_OBSERVATION_TARGET;
 use super::{Uart0, halt, hex8, monotonic_ms, write_ipv4};
 
 const DHCP_TIMEOUT_MS: u64 = 30_000;
@@ -24,7 +25,12 @@ const ICMP_IDENTIFIER: u16 = 0x5753;
 // Keep bounded headroom without spending a full KiB of the calibrated WS63
 // SRAM envelope on the two packet queues.
 const ICMP_PACKET_BUFFER_BYTES: usize = 128;
-const PUBLIC_TARGET: Ipv4Address = Ipv4Address::new(1, 1, 1, 1);
+const PUBLIC_TARGET: Ipv4Address = Ipv4Address::new(
+    PUBLIC_ICMP_OBSERVATION_TARGET[0],
+    PUBLIC_ICMP_OBSERVATION_TARGET[1],
+    PUBLIC_ICMP_OBSERVATION_TARGET[2],
+    PUBLIC_ICMP_OBSERVATION_TARGET[3],
+);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Lease {
@@ -145,6 +151,25 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         PING_COUNT,
     )
     .await;
+
+    if gateway_stats.rx != 0 {
+        uart.write(b"RF5C_LOCAL_DATA_PATH_OK gateway_rx=0x");
+    } else {
+        uart.write(b"RF5C_LOCAL_DATA_PATH_ERR gateway_rx=0x");
+    }
+    uart.write(&hex8(gateway_stats.rx));
+    uart.write(b" gateway_tx=0x");
+    uart.write(&hex8(gateway_stats.tx));
+    uart.write(b"\r\n");
+    uart.write(b"RF5C_PUBLIC_ICMP_OBSERVED target=");
+    write_ipv4(uart, PUBLIC_TARGET.octets());
+    uart.write(b" tx=0x");
+    uart.write(&hex8(public_stats.tx));
+    uart.write(b" rx=0x");
+    uart.write(&hex8(public_stats.rx));
+    uart.write(b" drop=0x");
+    uart.write(&hex8(public_stats.tx.saturating_sub(public_stats.rx)));
+    uart.write(b"\r\n");
 
     let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
     let queue = diagnostics.rx_queue;

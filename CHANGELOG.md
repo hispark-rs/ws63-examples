@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `hisi-rf 0.1.0-alpha.64`; the post-ping marker now reports the active WLMAC
   packed receive-filter control plus secret-free station-match and BSSID-programmed
   state.
+- Updated `wifi_connectivity` to the v7 aggregate diagnostics in
+  `hisi-rf 0.1.0-alpha.65`; scan timeout and retry boundaries now report
+  secret-free native callback, event-queue, and vendor-driver scan state.
+- Made the local connectivity gate explicit: DHCP plus at least one gateway
+  reply is required, while AliDNS ICMP is emitted only as packet-loss
+  observation and no longer decides HIL success.
 - Added an opt-in `data-path-diagnostics` feature so HIL can activate the
   vendor entry-point instrumentation without changing the normal WPA profiles.
 - Added an opt-in `diagnostic-disable-sta-pm` A/B profile. It requires a
