@@ -20,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Updated `wifi_connectivity` to the v7 aggregate diagnostics in
   `hisi-rf 0.1.0-alpha.65`; scan timeout and retry boundaries now report
   secret-free native callback, event-queue, and vendor-driver scan state.
+- Updated `wifi_connectivity` to the v8 aggregate diagnostics in
+  `hisi-rf 0.1.0-alpha.66`; post-connect output now distinguishes ARP request,
+  ARP reply, IPv4, and other Ethernet traffic in each direction. The legacy
+  `RF5A_ARP_OK` marker now states that its evidence is an ICMP reply rather than
+  pretending to be a direct neighbor-cache observation.
 - Made the local connectivity gate explicit: DHCP plus at least one gateway
   reply is required, while AliDNS ICMP is emitted only as packet-loss
   observation and no longer decides HIL success.

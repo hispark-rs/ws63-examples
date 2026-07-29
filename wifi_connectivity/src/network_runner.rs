@@ -56,6 +56,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         halt()
     };
     device.reset_rx_queue_diagnostics();
+    device.reset_l2_protocol_diagnostics();
 
     let mut config = Config::new(HardwareAddress::Ethernet(EthernetAddress(mac)));
     config.random_seed = 0x5753_3633;
@@ -174,6 +175,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
     let queue = diagnostics.rx_queue;
     let dhcp = diagnostics.dhcp;
+    let l2 = diagnostics.l2_protocol;
     let data_path = diagnostics.data_path;
     uart.write(b"RF5C_CONNECTIVITY_SUMMARY gateway_tx=0x");
     uart.write(&hex8(gateway_stats.tx));
@@ -185,6 +187,23 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(public_stats.rx));
     uart.write(b" rx_queue_drop=0x");
     uart.write(&hex8(queue.dropped));
+    uart.write(b"\r\n");
+    uart.write(b"RFDBG_A5B_L2 rx_arp_req=0x");
+    uart.write(&hex8(l2.rx_arp_requests));
+    uart.write(b" rx_arp_reply=0x");
+    uart.write(&hex8(l2.rx_arp_replies));
+    uart.write(b" rx_ipv4=0x");
+    uart.write(&hex8(l2.rx_ipv4));
+    uart.write(b" rx_other=0x");
+    uart.write(&hex8(l2.rx_other));
+    uart.write(b" tx_arp_req=0x");
+    uart.write(&hex8(l2.tx_arp_requests));
+    uart.write(b" tx_arp_reply=0x");
+    uart.write(&hex8(l2.tx_arp_replies));
+    uart.write(b" tx_ipv4=0x");
+    uart.write(&hex8(l2.tx_ipv4));
+    uart.write(b" tx_other=0x");
+    uart.write(&hex8(l2.tx_other));
     uart.write(b"\r\n");
     uart.write(b"RFDBG_A5B_DATA_PATH tx=0x");
     uart.write(&hex8(data_path.tx_frames));
@@ -445,7 +464,7 @@ async fn ping_series(
                     && seq_no == sequence
                 {
                     if !*neighbor_confirmed {
-                        uart.write(b"RF5A_ARP_OK mode=smoltcp-neighbor-cache\r\n");
+                        uart.write(b"RF5A_ARP_OK evidence=icmp-reply-implies-neighbor\r\n");
                         *neighbor_confirmed = true;
                     }
                     let rtt_ms =
