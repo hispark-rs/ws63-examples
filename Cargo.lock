@@ -775,23 +775,12 @@ checksum = "5fc2f9dded6797c89610a734aab74bdb96c9a44399fc38e40bb61ee337a8559d"
 
 [[package]]
 name = "hisi-rtos"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.15"
 dependencies = [
  "critical-section",
  "embassy-time-driver",
  "embassy-time-queue-utils",
- "hisi-rf-rtos-driver",
-]
-
-[[package]]
-name = "hisi-rtos"
-version = "0.1.0-alpha.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29f9dbd8c764de9844b58e2d42abfc9cbf0c1c21e0adb8985452308a4ba08df6"
-dependencies = [
- "critical-section",
- "embassy-time-driver",
- "embassy-time-queue-utils",
+ "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf-rtos-driver",
 ]
 
@@ -1141,7 +1130,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
- "hisi-rtos 0.1.0-alpha.14",
+ "hisi-rtos",
 ]
 
 [[package]]
@@ -1156,7 +1145,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
- "hisi-rtos 0.1.0-alpha.14",
+ "hisi-rtos",
  "static_cell",
 ]
 
@@ -1170,7 +1159,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
- "hisi-rtos 0.1.0-alpha.14",
+ "hisi-rtos",
 ]
 
 [[package]]
@@ -1183,7 +1172,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
- "hisi-rtos 0.1.0-alpha.14",
+ "hisi-rtos",
 ]
 
 [[package]]
@@ -1196,7 +1185,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
- "hisi-rtos 0.1.0-alpha.14",
+ "hisi-rtos",
 ]
 
 [[package]]
@@ -1543,7 +1532,7 @@ dependencies = [
  "hisi-panic-handler 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf",
  "hisi-riscv-rt 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "hisi-rtos 0.1.0-alpha.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-rtos",
  "smoltcp",
  "static_cell",
 ]

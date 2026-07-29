@@ -24,4 +24,5 @@ codegen-units = 1
 
 [patch.crates-io]
 hisi-rf-rtos-driver = { path = "../../crates/hisi-rf-rtos-driver" }
+hisi-rtos = { path = "../../crates/hisi-rtos" }
 ws63-pac = { path = "../../crates/chips/ws63/ws63-pac" }

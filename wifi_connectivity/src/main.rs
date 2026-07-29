@@ -17,11 +17,8 @@ use embassy_executor::{Executor, Spawner};
 use embassy_time::{Duration, Timer, with_timeout};
 use hisi_hal::Peripherals;
 use hisi_hal::delay::Delay;
-use hisi_hal::interrupt;
 use hisi_hal::rf_power::RfPower;
-use hisi_hal::software_interrupt::SoftwareInterrupt0;
 use hisi_hal::time::Instant;
-use hisi_hal::timer::TimerAlarm0;
 use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
@@ -57,6 +54,11 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
 static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
 
+hisi_rtos::bind_interrupts!(struct RtosIrqs {
+    TIMER_INT0 => hisi_rtos::ws63::TimerInterrupt;
+    SOFT_INT0 => hisi_rtos::ws63::SoftwareInterrupt;
+});
+
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().expect("peripherals already taken");
@@ -77,31 +79,27 @@ fn main() -> ! {
     let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
     let (_cldo_crg, efuse) = rf_ready.into_parts();
 
-    let _timer = TimerAlarm0::new(p.TIMER);
-    let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
-    let runtime = hisi_rtos::start_with_port(
-        hisi_rtos::PortedConfig {
+    let runtime = hisi_rtos::ws63::start(
+        hisi_rtos::ws63::Config {
             radio_task_policy: hisi_rtos::RunPolicy::Cooperative,
             max_scheduler_lock_duration: NonZeroU32::new(5_000).unwrap(),
-            ..hisi_rtos::PortedConfig::default()
+            ..hisi_rtos::ws63::Config::default()
         },
-        hisi_rtos::Resources {
-            allocate: rtos_allocate,
-            deallocate: rtos_deallocate,
-            monotonic_ms,
-        },
-        hisi_rtos::SchedulerPort {
-            max_timer_delay: NonZeroU32::new(TimerAlarm0::MAX_DELAY_MS)
-                .expect("timer maximum delay must be non-zero"),
-            arm_timer: TimerAlarm0::arm_millis,
-            disarm_timer: TimerAlarm0::disarm,
-            pend_reschedule: SoftwareInterrupt0::pend_interrupt,
+        hisi_rtos::ws63::Resources {
+            timer: p.TIMER,
+            software_interrupt: p.SYS_CTL1,
+            allocator: hisi_rtos::ws63::Allocator {
+                allocate: rtos_allocate,
+                deallocate: rtos_deallocate,
+            },
             contract_violation: rtos_contract_violation,
+            irqs: RtosIrqs::new(),
         },
     )
-    .expect("start ported runtime");
-    let main_task = runtime.current_task().expect("adopted main task");
+    .expect("start WS63 runtime");
+    let main_task = runtime.handle().current_task().expect("adopted main task");
     runtime
+        .handle()
         .set_task_run_policy(
             main_task,
             hisi_rtos::RunPolicy::Preemptive {
@@ -110,8 +108,6 @@ fn main() -> ! {
         )
         .expect("configure Embassy executor thread");
 
-    unsafe { interrupt::enable_global() };
-    hisi_rtos::request_reschedule();
     uart.write(b"RF1_IMAGE_OK\r\n");
 
     let (control_storage, radio_arena) = installed_storage.into_init_parts();
@@ -595,22 +591,6 @@ fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic
         uart.write(&hex8(code));
     }
     uart.write(b"\r\n");
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn TIMER_INT0() {
-    TimerAlarm0::clear_interrupt();
-    hisi_rtos::interrupt_enter();
-    hisi_rtos::on_timer_interrupt();
-    hisi_rtos::interrupt_exit();
-}
-
-#[unsafe(no_mangle)]
-extern "C" fn SOFT_INT0() {
-    SoftwareInterrupt0::clear_interrupt();
-    hisi_rtos::interrupt_enter();
-    hisi_rtos::on_software_interrupt();
-    hisi_rtos::interrupt_exit();
 }
 
 unsafe fn rtos_allocate(size: usize) -> *mut u8 {

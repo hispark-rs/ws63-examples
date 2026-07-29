@@ -33,6 +33,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added an opt-in `diagnostic-disable-sta-pm` A/B profile. It requires a
   successful typed PM-off result after association before running the unchanged-
   image connectivity matrix; normal example builds retain vendor PM policy.
+- Updated `wifi_connectivity` to `hisi-rtos 0.1.0-alpha.15` and the native WS63
+  scheduler-port facade. The example no longer owns TIMER_INT0/SOFT_INT0
+  handler bodies, `SchedulerPort` wiring, or global-interrupt startup.
 
 ### Added
 
