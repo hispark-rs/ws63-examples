@@ -56,6 +56,14 @@ pub(super) async fn run(uart: &Uart0, device: &mut WifiDevice) -> ! {
     let mut socket_storage = [SocketStorage::EMPTY; 2];
     let mut sockets = SocketSet::new(&mut socket_storage[..]);
     let mut dhcp_socket = dhcpv4::Socket::new();
+    // The HIL lease cap is shorter than smoltcp's production-oriented
+    // 60-second minimum renew retry, so use a matching bounded retry profile.
+    let mut dhcp_retry = dhcpv4::RetryConfig::default();
+    dhcp_retry.discover_timeout = Duration::from_secs(2);
+    dhcp_retry.initial_request_timeout = Duration::from_secs(2);
+    dhcp_retry.min_renew_timeout = Duration::from_secs(2);
+    dhcp_retry.max_renew_timeout = Duration::from_secs(5);
+    dhcp_socket.set_retry_config(dhcp_retry);
     dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(DHCP_SMOKE_MAX_LEASE_SECS)));
     let dhcp_handle = sockets.add(dhcp_socket);
 
