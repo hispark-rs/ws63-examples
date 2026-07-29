@@ -298,6 +298,24 @@ async fn connectivity(
         }
     }
     expect_event(uart, controller, ExpectedEvent::Connected).await;
+    #[cfg(feature = "diagnostic-disable-sta-pm")]
+    match hisi_rf::ws63::disable_station_power_save_for_diagnostics() {
+        Ok(()) => uart.write(b"RFDBG_STA_PM_DIAG mode=off status=ok\r\n"),
+        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::StationVapUnavailable) => {
+            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vap-unavailable\r\n");
+            halt()
+        }
+        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::Vendor(status)) => {
+            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vendor-error code=0x");
+            uart.write(&hex8(status));
+            uart.write(b"\r\n");
+            halt()
+        }
+        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::UnsupportedTarget) => {
+            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=unsupported-target\r\n");
+            halt()
+        }
+    }
     write_a5b_evidence(uart, controller, device);
     network_runner::run(uart, controller, device).await
 }
