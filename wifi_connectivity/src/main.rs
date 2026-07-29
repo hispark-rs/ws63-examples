@@ -381,6 +381,23 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDe
     uart.write(&hex8(blocking.supplicant_poll_calls));
     uart.write(b"\r\n");
 
+    let frw_sync = blocking.frw_sync_post;
+    uart.write(b"RFDBG_A5B_FRW_SYNC calls=0x");
+    uart.write(&hex8(frw_sync.calls));
+    uart.write(b" last_id=0x");
+    uart.write(&hex8(frw_sync.last_msg_id));
+    uart.write(b" last_timeout_ms=0x");
+    uart.write(&hex8(frw_sync.last_timeout_ms));
+    uart.write(b" last_elapsed_ms=0x");
+    uart.write(&hex8(frw_sync.last_elapsed_ms));
+    uart.write(b" last_ret=0x");
+    uart.write(&hex8(frw_sync.last_result));
+    uart.write(b" max_id=0x");
+    uart.write(&hex8(frw_sync.max_msg_id));
+    uart.write(b" max_elapsed_ms=0x");
+    uart.write(&hex8(frw_sync.max_elapsed_ms));
+    uart.write(b"\r\n");
+
     let association = hisi_rf::ws63::association_timing_diagnostics();
     uart.write(b"RFDBG_A5B_CONNECT_ASSOC_IOCTL");
     for value in [
