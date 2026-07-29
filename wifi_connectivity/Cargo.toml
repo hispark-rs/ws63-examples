@@ -37,6 +37,6 @@ smoltcp = { version = "0.13", default-features = false, features = [
     "medium-ethernet",
     "proto-ipv4",
     "socket-dhcpv4",
-    "socket-icmp",
+    "socket-udp",
 ] }
 static_cell = "2"

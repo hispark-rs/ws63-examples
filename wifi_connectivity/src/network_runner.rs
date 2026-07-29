@@ -4,32 +4,30 @@ use embassy_time::{Duration as EmbassyDuration, Timer};
 use hisi_rf::WifiController;
 use hisi_rf::ws63::{DhcpDiagnostics, WifiDevice};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
-use smoltcp::phy::{ChecksumCapabilities, Device};
-use smoltcp::socket::{dhcpv4, icmp};
+use smoltcp::socket::{dhcpv4, udp};
 use smoltcp::time::{Duration, Instant};
-use smoltcp::wire::{
-    EthernetAddress, HardwareAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr, Ipv4Address,
-};
+use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
 
-use super::config::PUBLIC_ICMP_OBSERVATION_TARGET;
+use super::config::PUBLIC_DNS_TARGET;
+use super::dns_contract::{ResponseError as DnsResponseError, build_query, validate_response};
 use super::{Uart0, halt, hex8, monotonic_ms, write_ipv4};
 
 const DHCP_TIMEOUT_MS: u64 = 30_000;
 const DHCP_SMOKE_MAX_LEASE_SECS: u64 = 20;
 const DHCP_RECOVERY_RESTART_MS: u64 = 10_000;
 const POLL_INTERVAL_MS: u64 = 10;
-const PING_TIMEOUT_MS: u64 = 1_000;
-const PING_COUNT: u16 = 5;
-const ICMP_IDENTIFIER: u16 = 0x5753;
-// The connectivity probe sends a 32-byte payload plus the 8-byte ICMP header.
-// Keep bounded headroom without spending a full KiB of the calibrated WS63
-// SRAM envelope on the two packet queues.
-const ICMP_PACKET_BUFFER_BYTES: usize = 128;
+const DNS_TRANSACTION_BASE: u16 = 0x5753;
+const DNS_ATTEMPTS: u16 = 3;
+const DNS_LOCAL_PORT: u16 = 49_153;
+const DNS_PORT: u16 = 53;
+const DNS_TIMEOUT_MS: u64 = 1_500;
+const DNS_RX_BUFFER_BYTES: usize = 256;
+const DNS_TX_BUFFER_BYTES: usize = 32;
 const PUBLIC_TARGET: Ipv4Address = Ipv4Address::new(
-    PUBLIC_ICMP_OBSERVATION_TARGET[0],
-    PUBLIC_ICMP_OBSERVATION_TARGET[1],
-    PUBLIC_ICMP_OBSERVATION_TARGET[2],
-    PUBLIC_ICMP_OBSERVATION_TARGET[3],
+    PUBLIC_DNS_TARGET[0],
+    PUBLIC_DNS_TARGET[1],
+    PUBLIC_DNS_TARGET[2],
+    PUBLIC_DNS_TARGET[3],
 );
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -40,13 +38,11 @@ struct Lease {
 }
 
 #[derive(Clone, Copy, Default)]
-struct PingStats {
-    tx: u32,
-    rx: u32,
+struct DnsStats {
+    attempts: u32,
+    responses: u32,
+    invalid: u32,
     tx_errors: u32,
-    rtt_total_ms: u64,
-    rtt_min_ms: u32,
-    rtt_max_ms: u32,
 }
 
 /// Own the L2 device and IP state for the rest of the firmware lifetime.
@@ -76,17 +72,17 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(DHCP_SMOKE_MAX_LEASE_SECS)));
     let dhcp_handle = sockets.add(dhcp_socket);
 
-    let mut icmp_rx_metadata = [icmp::PacketMetadata::EMPTY; 4];
-    let mut icmp_tx_metadata = [icmp::PacketMetadata::EMPTY; 4];
-    let mut icmp_rx_storage = [0_u8; ICMP_PACKET_BUFFER_BYTES];
-    let mut icmp_tx_storage = [0_u8; ICMP_PACKET_BUFFER_BYTES];
-    let icmp_rx = icmp::PacketBuffer::new(&mut icmp_rx_metadata[..], &mut icmp_rx_storage[..]);
-    let icmp_tx = icmp::PacketBuffer::new(&mut icmp_tx_metadata[..], &mut icmp_tx_storage[..]);
-    let icmp_handle = sockets.add(icmp::Socket::new(icmp_rx, icmp_tx));
+    let mut dns_rx_metadata = [udp::PacketMetadata::EMPTY; 1];
+    let mut dns_tx_metadata = [udp::PacketMetadata::EMPTY; 1];
+    let mut dns_rx_storage = [0_u8; DNS_RX_BUFFER_BYTES];
+    let mut dns_tx_storage = [0_u8; DNS_TX_BUFFER_BYTES];
+    let dns_rx = udp::PacketBuffer::new(&mut dns_rx_metadata[..], &mut dns_rx_storage[..]);
+    let dns_tx = udp::PacketBuffer::new(&mut dns_tx_metadata[..], &mut dns_tx_storage[..]);
+    let dns_handle = sockets.add(udp::Socket::new(dns_rx, dns_tx));
     sockets
-        .get_mut::<icmp::Socket>(icmp_handle)
-        .bind(icmp::Endpoint::Ident(ICMP_IDENTIFIER))
-        .expect("bind ICMP echo socket");
+        .get_mut::<udp::Socket>(dns_handle)
+        .bind(DNS_LOCAL_PORT)
+        .expect("bind DNS probe socket");
 
     uart.write(b"A4_NET_RUNNER_BEGIN stack=smoltcp\r\n");
     uart.write(b"RF5A_DHCP_BEGIN\r\n");
@@ -118,58 +114,49 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     };
     let dhcp_baseline = device.dhcp_diagnostics();
 
-    let mut neighbor_confirmed = false;
-    let gateway_stats = if let Some(gateway) = active_lease.router {
-        uart.write(b"RF5A_ARP_BEGIN target=");
-        write_ipv4(uart, gateway.octets());
-        uart.write(b" mode=smoltcp\r\n");
-        ping_series(
-            uart,
-            &mut interface,
-            device,
-            &mut sockets,
-            dhcp_handle,
-            icmp_handle,
-            &mut lease,
-            &mut neighbor_confirmed,
-            gateway,
-            PING_COUNT,
-        )
-        .await
-    } else {
-        PingStats::default()
-    };
-    let public_stats = ping_series(
+    let dns_stats = dns_probe(
         uart,
         &mut interface,
         device,
         &mut sockets,
         dhcp_handle,
-        icmp_handle,
+        dns_handle,
         &mut lease,
-        &mut neighbor_confirmed,
         PUBLIC_TARGET,
-        PING_COUNT,
     )
     .await;
+    let l2_gate = device.l2_protocol_diagnostics();
 
-    if gateway_stats.rx != 0 {
-        uart.write(b"RF5C_LOCAL_DATA_PATH_OK gateway_rx=0x");
+    if l2_gate.rx_arp_replies != 0 {
+        uart.write(b"RF5A_ARP_OK evidence=l2-arp-reply\r\n");
+        uart.write(b"RF5C_LOCAL_DATA_PATH_OK arp_reply=0x");
     } else {
-        uart.write(b"RF5C_LOCAL_DATA_PATH_ERR gateway_rx=0x");
+        uart.write(b"RF5C_LOCAL_DATA_PATH_ERR arp_reply=0x");
     }
-    uart.write(&hex8(gateway_stats.rx));
-    uart.write(b" gateway_tx=0x");
-    uart.write(&hex8(gateway_stats.tx));
+    uart.write(&hex8(l2_gate.rx_arp_replies));
+    uart.write(b" arp_request=0x");
+    uart.write(&hex8(l2_gate.tx_arp_requests));
+    uart.write(b" gateway=");
+    if let Some(router) = active_lease.router {
+        write_ipv4(uart, router.octets());
+    } else {
+        uart.write(b"none");
+    }
     uart.write(b"\r\n");
-    uart.write(b"RF5C_PUBLIC_ICMP_OBSERVED target=");
+    if dns_stats.responses == 0 {
+        uart.write(b"RF5C_PUBLIC_DNS_ERR target=");
+    } else {
+        uart.write(b"RF5C_PUBLIC_DNS_OK target=");
+    }
     write_ipv4(uart, PUBLIC_TARGET.octets());
-    uart.write(b" tx=0x");
-    uart.write(&hex8(public_stats.tx));
-    uart.write(b" rx=0x");
-    uart.write(&hex8(public_stats.rx));
-    uart.write(b" drop=0x");
-    uart.write(&hex8(public_stats.tx.saturating_sub(public_stats.rx)));
+    uart.write(b" attempts=0x");
+    uart.write(&hex8(dns_stats.attempts));
+    uart.write(b" responses=0x");
+    uart.write(&hex8(dns_stats.responses));
+    uart.write(b" invalid=0x");
+    uart.write(&hex8(dns_stats.invalid));
+    uart.write(b" tx_error=0x");
+    uart.write(&hex8(dns_stats.tx_errors));
     uart.write(b"\r\n");
 
     let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
@@ -177,14 +164,18 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let dhcp = diagnostics.dhcp;
     let l2 = diagnostics.l2_protocol;
     let data_path = diagnostics.data_path;
-    uart.write(b"RF5C_CONNECTIVITY_SUMMARY gateway_tx=0x");
-    uart.write(&hex8(gateway_stats.tx));
-    uart.write(b" gateway_rx=0x");
-    uart.write(&hex8(gateway_stats.rx));
-    uart.write(b" public_tx=0x");
-    uart.write(&hex8(public_stats.tx));
-    uart.write(b" public_rx=0x");
-    uart.write(&hex8(public_stats.rx));
+    uart.write(b"RF5C_CONNECTIVITY_SUMMARY arp_request=0x");
+    uart.write(&hex8(l2.tx_arp_requests));
+    uart.write(b" arp_reply=0x");
+    uart.write(&hex8(l2.rx_arp_replies));
+    uart.write(b" dns_attempts=0x");
+    uart.write(&hex8(dns_stats.attempts));
+    uart.write(b" dns_responses=0x");
+    uart.write(&hex8(dns_stats.responses));
+    uart.write(b" dns_invalid=0x");
+    uart.write(&hex8(dns_stats.invalid));
+    uart.write(b" dns_tx_error=0x");
+    uart.write(&hex8(dns_stats.tx_errors));
     uart.write(b" rx_queue_drop=0x");
     uart.write(&hex8(queue.dropped));
     uart.write(b"\r\n");
@@ -388,143 +379,104 @@ fn poll_network(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn ping_series(
+async fn dns_probe(
     uart: &Uart0,
     interface: &mut Interface,
     device: &mut WifiDevice,
     sockets: &mut SocketSet<'_>,
     dhcp_handle: SocketHandle,
-    icmp_handle: SocketHandle,
+    dns_handle: SocketHandle,
     lease: &mut Option<Lease>,
-    neighbor_confirmed: &mut bool,
     target: Ipv4Address,
-    count: u16,
-) -> PingStats {
-    let checksum = device.capabilities().checksum;
-    let mut stats = PingStats::default();
-    let mut payload = [0_u8; 32];
+) -> DnsStats {
+    let mut stats = DnsStats::default();
+    let remote = IpEndpoint::new(IpAddress::Ipv4(target), DNS_PORT);
 
-    uart.write(b"RF5C_PING_SERIES_BEGIN target=");
+    uart.write(b"RF5C_PUBLIC_DNS_BEGIN target=");
     write_ipv4(uart, target.octets());
-    uart.write(b" count=0x");
-    uart.write(&hex8(u32::from(count)));
+    uart.write(b" attempts=0x");
+    uart.write(&hex8(u32::from(DNS_ATTEMPTS)));
     uart.write(b"\r\n");
 
-    for sequence in 1..=count {
-        let started_at = monotonic_ms();
-        payload[..8].copy_from_slice(&started_at.to_le_bytes());
-        payload[8..10].copy_from_slice(&sequence.to_le_bytes());
-        let repr = Icmpv4Repr::EchoRequest {
-            ident: ICMP_IDENTIFIER,
-            seq_no: sequence,
-            data: &payload,
-        };
-        let sent = {
-            let socket = sockets.get_mut::<icmp::Socket>(icmp_handle);
-            socket
-                .send(repr.buffer_len(), IpAddress::Ipv4(target))
-                .map(|buffer| {
-                    let mut packet = Icmpv4Packet::new_unchecked(buffer);
-                    repr.emit(&mut packet, &checksum);
-                })
-        };
-
-        uart.write(b"RF5C_PING_SAMPLE target=");
-        write_ipv4(uart, target.octets());
-        uart.write(b" seq=0x");
-        uart.write(&hex8(u32::from(sequence)));
+    for attempt in 1..=DNS_ATTEMPTS {
+        let transaction_id = DNS_TRANSACTION_BASE.wrapping_add(attempt);
+        let query = build_query(transaction_id);
+        let sent = sockets
+            .get_mut::<udp::Socket>(dns_handle)
+            .send_slice(&query, remote);
+        stats.attempts = stats.attempts.saturating_add(1);
         if sent.is_err() {
             stats.tx_errors = stats.tx_errors.saturating_add(1);
+            write_dns_sample_prefix(uart, attempt, transaction_id);
             uart.write(b" status=tx_error\r\n");
             continue;
         }
-        stats.tx = stats.tx.saturating_add(1);
 
-        let mut received = false;
-        while monotonic_ms().wrapping_sub(started_at) < PING_TIMEOUT_MS {
+        let started_at = monotonic_ms();
+        let mut accepted = false;
+        while monotonic_ms().wrapping_sub(started_at) < DNS_TIMEOUT_MS {
             poll_network(uart, interface, device, sockets, dhcp_handle, lease);
-            let socket = sockets.get_mut::<icmp::Socket>(icmp_handle);
+            let socket = sockets.get_mut::<udp::Socket>(dns_handle);
             while socket.can_recv() {
-                let Ok((bytes, endpoint)) = socket.recv() else {
+                let Ok((response, metadata)) = socket.recv() else {
                     break;
                 };
-                let Ok(packet) = Icmpv4Packet::new_checked(bytes) else {
+                if metadata.endpoint != remote {
+                    stats.invalid = stats.invalid.saturating_add(1);
                     continue;
-                };
-                let Ok(Icmpv4Repr::EchoReply {
-                    ident,
-                    seq_no,
-                    data: _,
-                }) = Icmpv4Repr::parse(&packet, &ChecksumCapabilities::default())
-                else {
-                    continue;
-                };
-                if endpoint == IpAddress::Ipv4(target)
-                    && ident == ICMP_IDENTIFIER
-                    && seq_no == sequence
-                {
-                    if !*neighbor_confirmed {
-                        uart.write(b"RF5A_ARP_OK evidence=icmp-reply-implies-neighbor\r\n");
-                        *neighbor_confirmed = true;
+                }
+                match validate_response(response, transaction_id) {
+                    Ok(valid) => {
+                        stats.responses = stats.responses.saturating_add(1);
+                        write_dns_sample_prefix(uart, attempt, transaction_id);
+                        uart.write(b" status=ok answers=0x");
+                        uart.write(&hex8(u32::from(valid.answer_count)));
+                        uart.write(b"\r\n");
+                        accepted = true;
+                        break;
                     }
-                    let rtt_ms =
-                        monotonic_ms().wrapping_sub(started_at).min(u32::MAX as u64) as u32;
-                    stats.rx = stats.rx.saturating_add(1);
-                    stats.rtt_total_ms = stats.rtt_total_ms.saturating_add(u64::from(rtt_ms));
-                    stats.rtt_min_ms = if stats.rx == 1 {
-                        rtt_ms
-                    } else {
-                        stats.rtt_min_ms.min(rtt_ms)
-                    };
-                    stats.rtt_max_ms = stats.rtt_max_ms.max(rtt_ms);
-                    uart.write(b" status=ok rtt_ms=0x");
-                    uart.write(&hex8(rtt_ms));
-                    uart.write(b"\r\n");
-                    received = true;
-                    break;
+                    Err(error) => {
+                        stats.invalid = stats.invalid.saturating_add(1);
+                        write_dns_sample_prefix(uart, attempt, transaction_id);
+                        uart.write(b" status=invalid reason=");
+                        uart.write(dns_error_name(error));
+                        uart.write(b"\r\n");
+                    }
                 }
             }
-            if received {
+            if accepted {
                 break;
             }
             sleep_poll_interval().await;
         }
-        if !received {
-            uart.write(b" status=timeout\r\n");
+        if accepted {
+            break;
         }
+        write_dns_sample_prefix(uart, attempt, transaction_id);
+        uart.write(b" status=timeout\r\n");
     }
-
-    let dropped = stats.tx.saturating_sub(stats.rx);
-    let loss_pct = dropped
-        .saturating_mul(100)
-        .checked_div(stats.tx)
-        .unwrap_or(100);
-    uart.write(if stats.rx == 0 {
-        b"RF5C_PING_TIMEOUT target="
-    } else {
-        b"RF5C_PING_OK target="
-    });
-    write_ipv4(uart, target.octets());
-    uart.write(b" tx=0x");
-    uart.write(&hex8(stats.tx));
-    uart.write(b" rx=0x");
-    uart.write(&hex8(stats.rx));
-    uart.write(b" drop=0x");
-    uart.write(&hex8(dropped));
-    uart.write(b" tx_error=0x");
-    uart.write(&hex8(stats.tx_errors));
-    uart.write(b" loss_pct=0x");
-    uart.write(&hex8(loss_pct));
-    if stats.rx != 0 {
-        uart.write(b" rtt_min_ms=0x");
-        uart.write(&hex8(stats.rtt_min_ms));
-        uart.write(b" rtt_avg_ms=0x");
-        uart.write(&hex8((stats.rtt_total_ms / u64::from(stats.rx)) as u32));
-        uart.write(b" rtt_max_ms=0x");
-        uart.write(&hex8(stats.rtt_max_ms));
-    }
-    uart.write(b"\r\n");
     stats
+}
+
+fn write_dns_sample_prefix(uart: &Uart0, attempt: u16, transaction_id: u16) {
+    uart.write(b"RF5C_PUBLIC_DNS_SAMPLE attempt=0x");
+    uart.write(&hex8(u32::from(attempt)));
+    uart.write(b" txid=0x");
+    uart.write(&hex8(u32::from(transaction_id)));
+}
+
+fn dns_error_name(error: DnsResponseError) -> &'static [u8] {
+    match error {
+        DnsResponseError::Truncated => b"truncated",
+        DnsResponseError::TransactionId => b"transaction-id",
+        DnsResponseError::NotResponse => b"not-response",
+        DnsResponseError::Opcode => b"opcode",
+        DnsResponseError::TruncatedResponse => b"truncated-response",
+        DnsResponseError::ResponseCode => b"response-code",
+        DnsResponseError::QuestionCount => b"question-count",
+        DnsResponseError::Question => b"question",
+        DnsResponseError::NoAnswers => b"no-answers",
+    }
 }
 
 fn now() -> Instant {

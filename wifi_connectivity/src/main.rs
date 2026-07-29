@@ -8,6 +8,7 @@
 #![no_std]
 
 mod config;
+mod dns_contract;
 mod network_runner;
 
 use core::num::NonZeroU32;
