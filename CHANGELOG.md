@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.57` and replaced its
+  process-global runner/wait diagnostic cells with the facade-owned,
+  task-split-safe unified snapshot.
+
 ### Added
 
 - Added `wifi_connectivity`, the public `hisi-rf 0.1.0-alpha.48` end-to-end

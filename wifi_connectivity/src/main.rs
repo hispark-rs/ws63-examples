@@ -10,10 +10,8 @@
 mod config;
 mod network_runner;
 
-use core::cell::Cell;
 use core::num::NonZeroU32;
 
-use critical_section::Mutex;
 use embassy_executor::{Executor, Spawner};
 use embassy_time::{Duration, Timer, with_timeout};
 use hisi_hal::Peripherals;
@@ -27,12 +25,13 @@ use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
 use hisi_rf::ws63::{
-    IncrementalRadioParts, IncrementalRadioRunner, InstalledRadioStorage, SelectedProfile,
-    WifiDevice, Ws63IncrementalWaitDiagnostics, declare_radio_storage,
+    IncrementalRadioParts, IncrementalRadioRunner, InstalledRadioStorage,
+    RunnerDiagnosticsSnapshot, SelectedProfile, WaitDiagnosticsSnapshot, WifiDevice,
+    declare_radio_storage,
 };
 use hisi_rf::{
-    DiagnosticCode, IncrementalDriverEvent, IncrementalRunnerDiagnostics, Passphrase, ScanConfig,
-    ScanResult, StationConfig, WifiController, WifiEvent,
+    DiagnosticCode, IncrementalDriverEvent, Passphrase, ScanConfig, ScanResult, StationConfig,
+    WifiController, WifiEvent,
 };
 #[cfg(feature = "wpa3")]
 use hisi_rf::{SaePwe, Security};
@@ -56,10 +55,6 @@ declare_radio_storage!(static RADIO_STORAGE);
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
 static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
-static RUNNER_DIAGNOSTICS: Mutex<Cell<Option<IncrementalRunnerDiagnostics>>> =
-    Mutex::new(Cell::new(None));
-static WAIT_DIAGNOSTICS: Mutex<Cell<Option<Ws63IncrementalWaitDiagnostics>>> =
-    Mutex::new(Cell::new(None));
 
 #[entry]
 fn main() -> ! {
@@ -159,14 +154,6 @@ async fn radio_runner(runner: &'static mut IncrementalRadioRunner, uart: &'stati
         ));
         uart.write(b"\r\n");
         write_runner_event(uart, event);
-        critical_section::with(|cs| {
-            RUNNER_DIAGNOSTICS
-                .borrow(cs)
-                .set(Some(runner.diagnostics()));
-            WAIT_DIAGNOSTICS
-                .borrow(cs)
-                .set(Some(runner.wait_diagnostics()));
-        });
     }
 }
 
@@ -310,7 +297,7 @@ async fn connectivity(
         }
     }
     expect_event(uart, controller, ExpectedEvent::Connected).await;
-    write_a5b_evidence(uart, controller);
+    write_a5b_evidence(uart, controller, device);
     network_runner::run(uart, device).await
 }
 
@@ -348,8 +335,9 @@ async fn expect_event(uart: &Uart0, controller: &mut WifiController, expected: E
     }
 }
 
-fn write_a5b_evidence(uart: &Uart0, controller: &WifiController) {
-    let event = controller.event_diagnostics();
+fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDevice) {
+    let snapshot = hisi_rf::ws63::diagnostics(controller, device);
+    let event = snapshot.events;
     uart.write(b"RFDBG_A5B_EVENT pending=0x");
     uart.write(&hex8(event.pending.min(u32::MAX as usize) as u32));
     uart.write(b" high_water=0x");
@@ -358,7 +346,7 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController) {
     uart.write(&hex8(event.dropped));
     uart.write(b"\r\n");
 
-    let control = controller.blocking_runner_diagnostics();
+    let control = snapshot.control;
     uart.write(b"RFDBG_A5B_CONTROL pending=0x");
     uart.write(&hex8(
         control.command_queue_pending.min(u32::MAX as usize) as u32
@@ -369,22 +357,15 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController) {
     ));
     uart.write(b"\r\n");
 
-    let (runner, wait) = critical_section::with(|cs| {
-        (
-            RUNNER_DIAGNOSTICS.borrow(cs).get(),
-            WAIT_DIAGNOSTICS.borrow(cs).get(),
-        )
-    });
-    match runner {
-        Some(value) => write_runner_diagnostics(uart, value),
-        None => uart.write(b"RFDBG_A5B_RUNNER_ERR reason=missing_snapshot\r\n"),
+    match snapshot.runner {
+        RunnerDiagnosticsSnapshot::Incremental(value) => write_runner_diagnostics(uart, value),
+        RunnerDiagnosticsSnapshot::Blocking(_) => {
+            uart.write(b"RFDBG_A5B_RUNNER_ERR reason=wrong_profile\r\n");
+        }
     }
-    match wait {
-        Some(value) => write_wait_diagnostics(uart, value),
-        None => uart.write(b"RFDBG_A5B_WAIT_ERR reason=missing_snapshot\r\n"),
-    }
+    write_wait_diagnostics(uart, snapshot.wait);
 
-    let blocking = hisi_rf::ws63::blocking_backend_metrics();
+    let blocking = snapshot.blocking_calls;
     uart.write(b"RFDBG_A5B_BLOCKING init_calls=0x");
     uart.write(&hex8(blocking.initialize.calls));
     uart.write(b" init_max_ms=0x");
@@ -421,7 +402,7 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController) {
     uart.write(b"\r\nRFDBG_A5B_CONNECT_PROFILE_OK\r\n");
 }
 
-fn write_runner_diagnostics(uart: &Uart0, diagnostics: IncrementalRunnerDiagnostics) {
+fn write_runner_diagnostics(uart: &Uart0, diagnostics: hisi_rf::IncrementalRunnerDiagnostics) {
     uart.write(b"RFDBG_A5B_RUNNER run=0x");
     uart.write(&hex8(diagnostics.run_once_calls));
     uart.write(b" waits=0x");
@@ -448,7 +429,7 @@ fn write_runner_diagnostics(uart: &Uart0, diagnostics: IncrementalRunnerDiagnost
     uart.write(b"\r\n");
 }
 
-fn write_wait_diagnostics(uart: &Uart0, diagnostics: Ws63IncrementalWaitDiagnostics) {
+fn write_wait_diagnostics(uart: &Uart0, diagnostics: WaitDiagnosticsSnapshot) {
     uart.write(b"RFDBG_A5B_WAIT backend=0x");
     uart.write(&hex8(diagnostics.backend_signals));
     uart.write(b" l2=0x");
