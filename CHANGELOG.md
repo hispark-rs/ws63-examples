@@ -43,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.69`, keeping the example
   on the resource-report v8 diagnostics contract covered by the facade's full
   WPA2 host test.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.70`; its emitted resource
+  marker now identifies the repeated-silicon-calibrated WPA2 runtime profile.
 
 ### Added
 
