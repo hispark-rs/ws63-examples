@@ -310,6 +310,7 @@ async fn keep_polling(
             uart.write(b" server=0x");
             uart.write(&hex8(dhcp.server_packets - dhcp_baseline.server_packets));
             uart.write(b"\r\n");
+            super::write_heap_diagnostics(uart);
             renew_reported = true;
         }
         if current >= heartbeat_at {

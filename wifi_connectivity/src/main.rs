@@ -597,7 +597,20 @@ fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic
     uart.write(b"\r\n");
 }
 
-fn write_heap_diagnostics(uart: &Uart0) {
+pub(crate) fn write_heap_diagnostics(uart: &Uart0) {
+    let resources = RADIO_STORAGE.report();
+    uart.write(b"RFDBG_RESOURCE schema=");
+    uart.write(resources.schema.as_bytes());
+    uart.write(b" revision=");
+    uart.write(resources.profile_revision.as_bytes());
+    uart.write(b" runtime_arena=0x");
+    uart.write(&hex8(resources.runtime_arena_bytes.unwrap_or(0) as u32));
+    uart.write(b" rf_arena=0x");
+    uart.write(&hex8(resources.shared_rf_arena_bytes.unwrap_or(0) as u32));
+    uart.write(b" calibrated=0x");
+    uart.write(&hex8(u32::from(resources.runtime_resources_calibrated)));
+    uart.write(b"\r\n");
+
     let scheduler = RTOS_STORAGE.metrics();
     let radio = hisi_rf::ws63::rf_heap_metrics();
     uart.write(b"RFDBG_HEAP rtos_arena=0x");
