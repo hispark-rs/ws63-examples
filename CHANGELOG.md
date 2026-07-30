@@ -40,6 +40,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `hisi-rtos 0.1.0-alpha.17`. Caller-owned scheduler memory now uses
   `SchedulerArena`, including the HIL-derived synchronization-object headroom
   instead of reserving task stacks alone.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.69`, keeping the example
+  on the resource-report v8 diagnostics contract covered by the facade's full
+  WPA2 host test.
 
 ### Added
 
