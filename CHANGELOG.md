@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.71`. Incremental
+  operations now retain ownership after an uninterruptible backend turn
+  exceeds its elapsed time grant, allowing later completion events to be
+  attributed correctly while reporting budget exhaustion.
 - Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.60` and replaced its
   process-global runner/wait diagnostic cells with the facade-owned,
   task-split-safe unified snapshot.
