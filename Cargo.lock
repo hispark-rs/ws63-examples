@@ -24,11 +24,11 @@ dependencies = [
 
 [[package]]
 name = "ar_archive_writer"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4087686b4b0a3427190bae57a1d9a478dbb2d40c5dc1bd6e2b6d797913bdd348"
+checksum = "73cd58deff2140a0a8eae87e417bd01db68a33e148aa93d1e8cd837e55e312b6"
 dependencies = [
- "object",
+ "object 0.39.1",
 ]
 
 [[package]]
@@ -678,9 +678,9 @@ checksum = "82838ac70a30951282f15df5741eeb38f748f5347d419c91b93751ceccc49876"
 
 [[package]]
 name = "hisi-rf"
-version = "0.1.0-alpha.71"
+version = "0.1.0-alpha.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a33c268c35025d02199f245cc56adad1dab34ce3451452ed4bd81dfc54eb0a5"
+checksum = "2ac43171b3059fccf3db2365f5e113be3e8a30725ddb10a2c88c5c747faa55f6"
 dependencies = [
  "hisi-rf-core",
  "hisi-rf-ws63",
@@ -705,16 +705,16 @@ checksum = "1a3bfaaf6f48bd522576418bb3f2595946097c26687f022a8de6db5b5e88162f"
 
 [[package]]
 name = "hisi-rf-rtos-driver"
-version = "0.1.0-alpha.17"
+version = "0.1.0-alpha.18"
 dependencies = [
  "critical-section",
 ]
 
 [[package]]
 name = "hisi-rf-ws63"
-version = "0.1.0-alpha.61"
+version = "0.1.0-alpha.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2705b4bb4d2a4890cc47d8dde84c3007d40d0ad368f23ca171dafd1c1a4fd702"
+checksum = "eafbfb31414c799352094e9da2549cbaec592e23ec954f0f33dfd58dd732f07f"
 dependencies = [
  "ar_archive_writer",
  "critical-section",
@@ -728,7 +728,7 @@ dependencies = [
  "hisi-rf-core",
  "hisi-rf-rtos-driver",
  "hisi-storage",
- "object",
+ "object 0.37.3",
  "portable-atomic",
  "smoltcp",
  "static_cell",
@@ -775,7 +775,7 @@ checksum = "5fc2f9dded6797c89610a734aab74bdb96c9a44399fc38e40bb61ee337a8559d"
 
 [[package]]
 name = "hisi-rtos"
-version = "0.1.0-alpha.17"
+version = "0.1.0-alpha.18"
 dependencies = [
  "critical-section",
  "embassy-time-driver",
@@ -962,6 +962,15 @@ dependencies = [
  "crc32fast",
  "hashbrown 0.15.5",
  "indexmap",
+ "memchr",
+]
+
+[[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
  "memchr",
 ]
 
@@ -1603,7 +1612,7 @@ checksum = "e13276cb442ce837fee466b560f797a6c879174eafd7d4264d13ab67e5b9eb9b"
 dependencies = [
  "hisi-rf-link",
  "hisi-rom-sys-ws63",
- "object",
+ "object 0.37.3",
  "serde",
  "sha2",
  "toml",

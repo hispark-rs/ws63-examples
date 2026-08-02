@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.73`. Its opt-in
+  incremental runner now delegates synchronous vendor turns to the caller-owned
+  budgeted RTOS worker, with the 8 KiB worker stack and bounded control state
+  represented in the complete SRAM contract. The example remains the dual-board
+  HIL calibration path before that worker can become a default profile.
 - Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.71`. Incremental
   operations now retain ownership after an uninterruptible backend turn
   exceeds its elapsed time grant, allowing later completion events to be
