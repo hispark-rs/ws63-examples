@@ -18,10 +18,21 @@ pub const EVENT_WAIT_DEADLINE: Duration = Duration::from_secs(2);
 /// Public DNS targets used to prove routed UDP connectivity.
 pub const PUBLIC_DNS_TARGETS: [[u8; 4]; 2] = [[223, 5, 5, 5], [180, 76, 76, 76]];
 
+#[cfg(feature = "dual-board-hil")]
+#[path = "../../hil_wifi_config.rs"]
+mod dual_board;
+
+#[cfg(feature = "dual-board-hil")]
+pub const TEST_SSID: &[u8] = dual_board::SSID;
+#[cfg(feature = "dual-board-hil")]
+pub const TEST_PASSPHRASE: &[u8] = dual_board::PASSPHRASE;
+
+#[cfg(not(feature = "dual-board-hil"))]
 pub const TEST_SSID: &[u8] = match option_env!("WS63_WIFI_SSID") {
     Some(value) => value.as_bytes(),
     None => b"",
 };
+#[cfg(not(feature = "dual-board-hil"))]
 pub const TEST_PASSPHRASE: &[u8] = match option_env!("WS63_WIFI_PASSPHRASE") {
     Some(value) => value.as_bytes(),
     None => b"",

@@ -1,0 +1,123 @@
+//! Fixed, non-production SoftAP for two-board WS63 HIL.
+
+#![no_main]
+#![no_std]
+
+#[path = "../../hil_wifi_config.rs"]
+mod config;
+
+use core::num::NonZeroU32;
+
+use hisi_hal::Peripherals;
+use hisi_hal::delay::Delay;
+use hisi_hal::interrupt;
+use hisi_hal::rf_power::RfPower;
+use hisi_hal::software_interrupt::SoftwareInterrupt0;
+use hisi_hal::time::Instant;
+use hisi_hal::timer::TimerAlarm0;
+use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
+use hisi_hal::wdt::Watchdog;
+use hisi_panic_handler as _;
+use hisi_rf_ws63::{
+    AccessPointConfig, AccessPointResources, InstalledAccessPointStorage,
+    declare_access_point_storage,
+};
+use hisi_riscv_rt::entry;
+
+declare_access_point_storage!(static RADIO_STORAGE);
+
+#[entry]
+fn main() -> ! {
+    let p = Peripherals::take().expect("peripherals already taken");
+    let uart = Uart::new_uart0(
+        p.UART0,
+        UartConfig {
+            clock: UartClock::Boot,
+            ..UartConfig::default()
+        },
+    );
+    Watchdog::new(p.WDT).disable();
+    uart.write(b"\r\nRFDBG_SOFTAP_BEGIN\r\n");
+
+    let installed = RADIO_STORAGE.install().expect("install SoftAP storage");
+    let mut delay = Delay::new();
+    let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
+    let (_cldo_crg, efuse) = rf_ready.into_parts();
+
+    let _timer = TimerAlarm0::new(p.TIMER);
+    let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
+    let _runtime = hisi_rtos::start_with_port(
+        hisi_rtos::PortedConfig {
+            radio_task_policy: hisi_rtos::RunPolicy::Cooperative,
+            max_scheduler_lock_duration: NonZeroU32::new(5_000).unwrap(),
+            ..hisi_rtos::PortedConfig::default()
+        },
+        hisi_rtos::Resources {
+            allocate: rtos_allocate,
+            deallocate: rtos_deallocate,
+            monotonic_ms,
+        },
+        hisi_rtos::SchedulerPort {
+            max_timer_delay: NonZeroU32::new(TimerAlarm0::MAX_DELAY_MS).unwrap(),
+            arm_timer: TimerAlarm0::arm_millis,
+            disarm_timer: TimerAlarm0::disarm,
+            pend_reschedule: SoftwareInterrupt0::pend_interrupt,
+            contract_violation: rtos_contract_violation,
+        },
+    )
+    .expect("start ported runtime");
+    unsafe { interrupt::enable_global() };
+
+    let resources = AccessPointResources::new(efuse, p.KM, p.SPACC, p.TRNG, installed);
+    let mut access_point = hisi_rf_ws63::init_access_point(
+        AccessPointConfig::wpa2_personal(config::SSID, config::PASSPHRASE, config::CHANNEL),
+        resources,
+    )
+    .expect("start native SoftAP");
+    uart.write(b"RFDBG_SOFTAP_READY\r\n");
+
+    loop {
+        access_point
+            .poll(NonZeroU32::new(16).unwrap())
+            .expect("poll native authenticator");
+        access_point.wait_for_work(5).expect("wait for AP work");
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn TIMER_INT0() {
+    TimerAlarm0::clear_interrupt();
+    hisi_rtos::interrupt_enter();
+    hisi_rtos::on_timer_interrupt();
+    hisi_rtos::interrupt_exit();
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn SOFT_INT0() {
+    SoftwareInterrupt0::clear_interrupt();
+    hisi_rtos::interrupt_enter();
+    hisi_rtos::on_software_interrupt();
+    hisi_rtos::interrupt_exit();
+}
+
+unsafe fn rtos_allocate(size: usize) -> *mut u8 {
+    unsafe {
+        InstalledAccessPointStorage::<{ hisi_rf_ws63::ACCESS_POINT_ARENA_BYTES }>::allocate(size)
+    }
+}
+
+unsafe fn rtos_deallocate(pointer: *mut u8) {
+    unsafe {
+        InstalledAccessPointStorage::<{ hisi_rf_ws63::ACCESS_POINT_ARENA_BYTES }>::deallocate(
+            pointer,
+        )
+    };
+}
+
+fn monotonic_ms() -> u64 {
+    Instant::now().raw() / 24_000
+}
+
+fn rtos_contract_violation(_violation: hisi_rtos::ContractViolation) -> ! {
+    panic!("hisi-rtos scheduler contract violation")
+}
