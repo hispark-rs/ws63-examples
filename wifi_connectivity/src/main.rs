@@ -22,16 +22,16 @@ use hisi_hal::time::Instant;
 use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
+#[cfg(feature = "wpa3")]
+use hisi_rf::SaePwe;
 use hisi_rf::ws63::{
     IncrementalRadioParts, IncrementalRadioRunner, RunnerDiagnosticsSnapshot, SelectedProfile,
     WaitDiagnosticsSnapshot, WifiDevice, declare_radio_storage,
 };
 use hisi_rf::{
-    DiagnosticCode, IncrementalDriverEvent, Passphrase, ScanConfig, ScanResult, StationConfig,
-    WifiController, WifiEvent,
+    DiagnosticCode, IncrementalDriverEvent, Passphrase, ScanConfig, ScanResult, Security,
+    StationConfig, WifiController, WifiEvent,
 };
-#[cfg(feature = "wpa3")]
-use hisi_rf::{SaePwe, Security};
 use hisi_riscv_rt::entry;
 use static_cell::StaticCell;
 
@@ -209,6 +209,7 @@ async fn connectivity(
                     Timer::after(Duration::from_millis(250)).await;
                     continue;
                 }
+                write_scan_inventory(uart, &scan_results[..outcome.count]);
                 uart.write(b"RF5B_AP_NOT_FOUND\r\n");
                 halt()
             }
@@ -581,8 +582,82 @@ fn write_scan_diagnostics(
     uart.write(b"\r\n");
 }
 
+fn write_scan_inventory(uart: &Uart0, results: &[ScanResult]) {
+    uart.write(b"RFDBG_SCAN_TARGET len=0x");
+    uart.write(&hex8(TEST_SSID.len() as u32));
+    uart.write(b" hash=0x");
+    uart.write(&hex8(fnv1a32(TEST_SSID)));
+    uart.write(b"\r\n");
+
+    for (index, result) in results.iter().enumerate() {
+        uart.write(b"RFDBG_SCAN_RESULT index=0x");
+        uart.write(&hex8(index as u32));
+        uart.write(b" len=0x");
+        uart.write(&hex8(result.ssid.as_bytes().len() as u32));
+        uart.write(b" hash=0x");
+        uart.write(&hex8(fnv1a32(result.ssid.as_bytes())));
+        uart.write(b" channel=0x");
+        uart.write(&hex8(u32::from(result.channel)));
+        uart.write(b" security=");
+        uart.write(match result.security {
+            Security::Open => b"open",
+            Security::Wpa2Personal => b"wpa2",
+            Security::Wpa3Personal => b"wpa3",
+            Security::Wpa2Wpa3PersonalTransition => b"wpa2-wpa3",
+            Security::OtherProtected => b"other",
+        });
+        uart.write(b"\r\n");
+    }
+}
+
+fn fnv1a32(bytes: &[u8]) -> u32 {
+    let mut hash = 0x811c_9dc5_u32;
+    for byte in bytes {
+        hash ^= u32::from(*byte);
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
+}
+
 fn write_controller_error(uart: &Uart0, prefix: &[u8], error: hisi_rf::Error) {
     write_diagnostic(uart, prefix, error.diagnostic());
+    write_driver_event_diagnostics(uart);
+    write_supplicant_event_diagnostics(uart);
+}
+
+fn write_driver_event_diagnostics(uart: &Uart0) {
+    let values = hisi_rf::ws63::upstream_supplicant_driver_event_diagnostic_snapshot();
+    uart.write(b"RFDBG_DRIVER_EVENT calls=0x");
+    uart.write(&hex8(values[0]));
+    uart.write(b" last_kind=0x");
+    uart.write(&hex8(values[1]));
+    uart.write(b" last_length=0x");
+    uart.write(&hex8(values[2]));
+    uart.write(b" connect_calls=0x");
+    uart.write(&hex8(values[3]));
+    uart.write(b" connect_reject=0x");
+    uart.write(&hex8(values[4]));
+    uart.write(b" connect_queued=0x");
+    uart.write(&hex8(values[5]));
+    uart.write(b"\r\n");
+}
+
+fn write_supplicant_event_diagnostics(uart: &Uart0) {
+    let event = hisi_rf::ws63::upstream_supplicant_event_diagnostic_snapshot();
+    uart.write(b"RFDBG_SUPPLICANT_EVENT");
+    for value in event {
+        uart.write(b" 0x");
+        uart.write(&hex8(value));
+    }
+    uart.write(b"\r\n");
+
+    let eapol = hisi_rf::ws63::upstream_supplicant_eapol_diagnostic_snapshot();
+    uart.write(b"RFDBG_SUPPLICANT_EAPOL");
+    for value in eapol {
+        uart.write(b" 0x");
+        uart.write(&hex8(value));
+    }
+    uart.write(b"\r\n");
 }
 
 fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic) {
@@ -594,6 +669,19 @@ fn write_diagnostic(uart: &Uart0, prefix: &[u8], diagnostic: hisi_rf::Diagnostic
     if let Some(code) = diagnostic.backend_code() {
         uart.write(b" backend=0x");
         uart.write(&hex8(code));
+    }
+    let trace = diagnostic.trace();
+    for index in 0..trace.len() {
+        let Some(entry) = trace.get(index) else {
+            continue;
+        };
+        uart.write(b" ");
+        uart.write(entry.kind().as_str().as_bytes());
+        uart.write(b"=0x");
+        uart.write(&hex8(entry.value()));
+    }
+    if trace.is_truncated() {
+        uart.write(b" trace_truncated=1");
     }
     uart.write(b"\r\n");
 }
