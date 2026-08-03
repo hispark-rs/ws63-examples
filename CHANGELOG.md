@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.76` and
+  `hisi-rtos 0.1.0-alpha.19`; vendor and incremental-worker stacks are now
+  admitted atomically before RF initialization.
 - Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.74`. The WS63
   incremental composition now admits its seven vendor tasks and one Rust
   worker independently, matching the split reservation proven by init/scan

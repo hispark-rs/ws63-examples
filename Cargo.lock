@@ -575,7 +575,7 @@ dependencies = [
 
 [[package]]
 name = "hisi-alloc"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "critical-section",
  "linked_list_allocator",
@@ -583,9 +583,9 @@ dependencies = [
 
 [[package]]
 name = "hisi-alloc"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "faba70f76aab1e33186ee4a42c234e31f3fc618740d7faf9ddaa61da2f64fddc"
+checksum = "8ff938ca9f1efab40af5b1df83e76a4cebcfddf424006999eebdde80dc8cf1de"
 dependencies = [
  "critical-section",
  "linked_list_allocator",
@@ -678,9 +678,9 @@ checksum = "82838ac70a30951282f15df5741eeb38f748f5347d419c91b93751ceccc49876"
 
 [[package]]
 name = "hisi-rf"
-version = "0.1.0-alpha.75"
+version = "0.1.0-alpha.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75dc43732c84b5e64c7e51b3a35bc1e13afdb56537c0b4ee941b780ce26137c7"
+checksum = "b02f06a609dc684156974d723d14391dc54c355da8a2e93633ba8e64e6547977"
 dependencies = [
  "hisi-rf-core",
  "hisi-rf-ws63",
@@ -688,9 +688,9 @@ dependencies = [
 
 [[package]]
 name = "hisi-rf-core"
-version = "0.1.0-alpha.20"
+version = "0.1.0-alpha.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3119b879f2b0a346ab4e101054151b55ceb84a7cd73aafc185a07ce485de8bfe"
+checksum = "fd8d2bf8b66b403550b322cf19a600989ed1da4c46e7f23552874eae2de742eb"
 dependencies = [
  "embassy-sync",
  "portable-atomic",
@@ -705,22 +705,22 @@ checksum = "1a3bfaaf6f48bd522576418bb3f2595946097c26687f022a8de6db5b5e88162f"
 
 [[package]]
 name = "hisi-rf-rtos-driver"
-version = "0.1.0-alpha.18"
+version = "0.1.0-alpha.19"
 dependencies = [
  "critical-section",
 ]
 
 [[package]]
 name = "hisi-rf-ws63"
-version = "0.1.0-alpha.65"
+version = "0.1.0-alpha.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "605532f8edd3510f9d7744949c6fc199d1a1b887399987169ba08c5707a4d527"
+checksum = "8ce2763e1890a76b9e3db4f4346eaf18d782ecb8b9a2958166f57d4b8358a82a"
 dependencies = [
  "ar_archive_writer",
  "critical-section",
  "embassy-sync",
  "embassy-time",
- "hisi-alloc 0.1.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-alloc 0.1.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-crypto",
  "hisi-crypto-ws63",
  "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -775,12 +775,12 @@ checksum = "5fc2f9dded6797c89610a734aab74bdb96c9a44399fc38e40bb61ee337a8559d"
 
 [[package]]
 name = "hisi-rtos"
-version = "0.1.0-alpha.18"
+version = "0.1.0-alpha.19"
 dependencies = [
  "critical-section",
  "embassy-time-driver",
  "embassy-time-queue-utils",
- "hisi-alloc 0.1.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-alloc 0.1.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf-rtos-driver",
 ]
@@ -1135,7 +1135,7 @@ name = "rtos_budget_enforcement"
 version = "0.1.0"
 dependencies = [
  "critical-section",
- "hisi-alloc 0.1.0-alpha.2",
+ "hisi-alloc 0.1.0-alpha.3",
  "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
@@ -1150,7 +1150,7 @@ dependencies = [
  "critical-section",
  "embassy-executor",
  "embassy-time",
- "hisi-alloc 0.1.0-alpha.2",
+ "hisi-alloc 0.1.0-alpha.3",
  "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
@@ -1164,7 +1164,7 @@ name = "rtos_preemption"
 version = "0.1.0"
 dependencies = [
  "critical-section",
- "hisi-alloc 0.1.0-alpha.2",
+ "hisi-alloc 0.1.0-alpha.3",
  "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
@@ -1177,7 +1177,7 @@ name = "rtos_priority_inheritance"
 version = "0.1.0"
 dependencies = [
  "critical-section",
- "hisi-alloc 0.1.0-alpha.2",
+ "hisi-alloc 0.1.0-alpha.3",
  "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
@@ -1190,7 +1190,7 @@ name = "rtos_scheduler_stress"
 version = "0.1.0"
 dependencies = [
  "critical-section",
- "hisi-alloc 0.1.0-alpha.2",
+ "hisi-alloc 0.1.0-alpha.3",
  "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
