@@ -11,7 +11,7 @@ mod config;
 mod dns_contract;
 mod network_runner;
 
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, NonZeroUsize};
 
 use embassy_executor::{Executor, Spawner};
 use embassy_time::{Duration, Timer, with_timeout};
@@ -87,9 +87,10 @@ fn main() -> ! {
 
     let runtime = hisi_rtos::ws63::start(
         hisi_rtos::ws63::Config {
+            minimum_stack_size: NonZeroUsize::new(hisi_rf::ws63::SELECTED_MINIMUM_TASK_STACK_BYTES)
+                .expect("selected profile minimum task stack is non-zero"),
             radio_task_policy: hisi_rtos::RunPolicy::Cooperative,
             max_scheduler_lock_duration: NonZeroU32::new(5_000).unwrap(),
-            ..hisi_rtos::ws63::Config::default()
         },
         hisi_rtos::ws63::Resources {
             timer: p.TIMER,
