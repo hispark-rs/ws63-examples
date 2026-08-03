@@ -20,6 +20,8 @@ const DNS_TRANSACTION_BASE: u16 = 0x5753;
 const DNS_ATTEMPTS_PER_TARGET: u16 = 2;
 const DNS_LOCAL_PORT: u16 = 49_153;
 const DNS_PORT: u16 = 53;
+const LOCAL_PROBE_PORT: u16 = 9;
+const LOCAL_PROBE_TIMEOUT_MS: u64 = 1_500;
 const DNS_TIMEOUT_MS: u64 = 1_500;
 const DNS_RX_BUFFER_BYTES: usize = 256;
 const DNS_TX_BUFFER_BYTES: usize = 32;
@@ -42,6 +44,7 @@ const PUBLIC_TARGETS: [Ipv4Address; 2] = [
 struct Lease {
     address: Ipv4Address,
     prefix_len: u8,
+    server: Ipv4Address,
     router: Option<Ipv4Address>,
 }
 
@@ -123,7 +126,8 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     };
     let dhcp_baseline = device.dhcp_diagnostics();
 
-    let dns_stats = dns_probe(
+    let local_target = active_lease.router.unwrap_or(active_lease.server);
+    local_neighbor_probe(
         uart,
         &mut interface,
         device,
@@ -131,9 +135,25 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         dhcp_handle,
         dns_handle,
         &mut lease,
-        &PUBLIC_TARGETS,
+        local_target,
     )
     .await;
+    let dns_stats = if active_lease.router.is_some() {
+        dns_probe(
+            uart,
+            &mut interface,
+            device,
+            &mut sockets,
+            dhcp_handle,
+            dns_handle,
+            &mut lease,
+            &PUBLIC_TARGETS,
+        )
+        .await
+    } else {
+        uart.write(b"RF5C_PUBLIC_DNS_SKIP reason=no-default-route\r\n");
+        DnsStats::default()
+    };
     let l2_gate = device.l2_protocol_diagnostics();
 
     if l2_gate.rx_arp_replies != 0 {
@@ -152,25 +172,27 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         uart.write(b"none");
     }
     uart.write(b"\r\n");
-    if dns_stats.responses == 0 {
-        uart.write(b"RF5C_PUBLIC_DNS_ERR target=");
-    } else {
-        uart.write(b"RF5C_PUBLIC_DNS_OK target=");
+    if active_lease.router.is_some() {
+        if dns_stats.responses == 0 {
+            uart.write(b"RF5C_PUBLIC_DNS_ERR target=");
+        } else {
+            uart.write(b"RF5C_PUBLIC_DNS_OK target=");
+        }
+        if let Some(target) = dns_stats.successful_target {
+            write_ipv4(uart, target.octets());
+        } else {
+            uart.write(b"none");
+        }
+        uart.write(b" attempts=0x");
+        uart.write(&hex8(dns_stats.attempts));
+        uart.write(b" responses=0x");
+        uart.write(&hex8(dns_stats.responses));
+        uart.write(b" invalid=0x");
+        uart.write(&hex8(dns_stats.invalid));
+        uart.write(b" tx_error=0x");
+        uart.write(&hex8(dns_stats.tx_errors));
+        uart.write(b"\r\n");
     }
-    if let Some(target) = dns_stats.successful_target {
-        write_ipv4(uart, target.octets());
-    } else {
-        uart.write(b"none");
-    }
-    uart.write(b" attempts=0x");
-    uart.write(&hex8(dns_stats.attempts));
-    uart.write(b" responses=0x");
-    uart.write(&hex8(dns_stats.responses));
-    uart.write(b" invalid=0x");
-    uart.write(&hex8(dns_stats.invalid));
-    uart.write(b" tx_error=0x");
-    uart.write(&hex8(dns_stats.tx_errors));
-    uart.write(b"\r\n");
 
     let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
     let queue = diagnostics.rx_queue;
@@ -341,6 +363,7 @@ fn poll_network(
             let next = Lease {
                 address: config.address.address(),
                 prefix_len: config.address.prefix_len(),
+                server: config.server.address,
                 router: config.router,
             };
             interface.update_ip_addrs(|addresses| {
@@ -389,6 +412,36 @@ fn poll_network(
             }
         }
         None => {}
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn local_neighbor_probe(
+    uart: &Uart0,
+    interface: &mut Interface,
+    device: &mut WifiDevice,
+    sockets: &mut SocketSet<'_>,
+    dhcp_handle: SocketHandle,
+    udp_handle: SocketHandle,
+    lease: &mut Option<Lease>,
+    target: Ipv4Address,
+) {
+    uart.write(b"RF5C_LOCAL_NEIGHBOR_BEGIN target=");
+    write_ipv4(uart, target.octets());
+    uart.write(b"\r\n");
+
+    let endpoint = IpEndpoint::new(IpAddress::Ipv4(target), LOCAL_PROBE_PORT);
+    let sent = sockets
+        .get_mut::<udp::Socket>(udp_handle)
+        .send_slice(&[0], endpoint)
+        .is_ok();
+    let started_at = monotonic_ms();
+    while sent && monotonic_ms().wrapping_sub(started_at) < LOCAL_PROBE_TIMEOUT_MS {
+        poll_network(uart, interface, device, sockets, dhcp_handle, lease);
+        if device.l2_protocol_diagnostics().rx_arp_replies != 0 {
+            return;
+        }
+        sleep_poll_interval().await;
     }
 }
 
