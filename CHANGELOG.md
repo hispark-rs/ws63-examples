@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Fixed `wifi_connectivity` scan retries so every completed scan consumes and
+  validates its matching `WifiEvent`. A timed-out first attempt can no longer
+  leave a stale failure ahead of the replacement scan's completion event.
 - Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.77` and
   `hisi-rtos 0.1.0-alpha.19`; vendor and incremental-worker stacks are admitted
   atomically before RF initialization, and counted backend/L2 wake delivery

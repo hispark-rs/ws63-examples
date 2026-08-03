@@ -29,8 +29,8 @@ use hisi_rf::ws63::{
     WaitDiagnosticsSnapshot, WifiDevice, declare_radio_storage,
 };
 use hisi_rf::{
-    DiagnosticCode, IncrementalDriverEvent, Passphrase, ScanConfig, ScanResult, Security,
-    StationConfig, WifiController, WifiEvent,
+    DiagnosticCode, Error as WifiError, IncrementalDriverEvent, Passphrase, ScanConfig,
+    ScanOutcome, ScanResult, Security, StationConfig, WifiController, WifiEvent,
 };
 use hisi_riscv_rt::entry;
 use static_cell::StaticCell;
@@ -191,13 +191,22 @@ async fn connectivity(
     let mut retries = 0_u8;
     let scan_started = monotonic_ms();
     let outcome = loop {
-        match with_timeout(
+        let result = match with_timeout(
             SCAN_WAIT_DEADLINE,
             controller.scan(ScanConfig::new(SCAN_OPERATION_TIMEOUT), &mut scan_results),
         )
         .await
         {
-            Ok(Ok(outcome)) => {
+            Ok(result) => result,
+            Err(_) => {
+                write_scan_diagnostics(uart, controller, device, u32::from(retries) + 1);
+                uart.write(b"RF3_SCAN_ERR reason=outer_timeout\r\n");
+                halt()
+            }
+        };
+        expect_scan_event(uart, controller, result).await;
+        match result {
+            Ok(outcome) => {
                 if scan_results[..outcome.count]
                     .iter()
                     .any(|result| result.ssid.as_bytes() == TEST_SSID)
@@ -213,7 +222,7 @@ async fn connectivity(
                 uart.write(b"RF5B_AP_NOT_FOUND\r\n");
                 halt()
             }
-            Ok(Err(error))
+            Err(error)
                 if retries == 0
                     && error.diagnostic().code() == DiagnosticCode::OperationTimeout =>
             {
@@ -221,14 +230,9 @@ async fn connectivity(
                 retries = 1;
                 Timer::after(Duration::from_millis(250)).await;
             }
-            Ok(Err(error)) => {
+            Err(error) => {
                 write_scan_diagnostics(uart, controller, device, u32::from(retries) + 1);
                 write_controller_error(uart, b"RF3_SCAN_ERR", error);
-                halt()
-            }
-            Err(_) => {
-                write_scan_diagnostics(uart, controller, device, u32::from(retries) + 1);
-                uart.write(b"RF3_SCAN_ERR reason=outer_timeout\r\n");
                 halt()
             }
         }
@@ -249,7 +253,7 @@ async fn connectivity(
     uart.write(b" truncated=0x");
     uart.write(&hex8(u32::from(outcome.truncated)));
     uart.write(b"\r\n");
-    expect_event(uart, controller, ExpectedEvent::ScanCompleted).await;
+    uart.write(b"A4_RADIO_EVENT kind=scan-completed\r\n");
 
     let result = scan_results[..outcome.count]
         .iter()
@@ -328,24 +332,38 @@ async fn connectivity(
 
 enum ExpectedEvent {
     Initialized,
-    ScanCompleted,
     Connected,
 }
 
+async fn expect_scan_event(
+    uart: &Uart0,
+    controller: &mut WifiController,
+    result: Result<ScanOutcome, WifiError>,
+) {
+    let event = next_event_or_halt(uart, controller).await;
+    let matches = match (result, event) {
+        (Ok(expected), WifiEvent::ScanCompleted { count, truncated })
+            if count == expected.count && truncated == expected.truncated =>
+        {
+            true
+        }
+        (Err(WifiError::Backend(expected)), WifiEvent::Failed(actual)) if expected == actual => {
+            true
+        }
+        (Err(WifiError::Protocol), WifiEvent::Failed(_)) => true,
+        _ => false,
+    };
+    if !matches {
+        write_unexpected_event(uart, event);
+        halt()
+    }
+}
+
 async fn expect_event(uart: &Uart0, controller: &mut WifiController, expected: ExpectedEvent) {
-    let event = with_timeout(EVENT_WAIT_DEADLINE, controller.next_event())
-        .await
-        .unwrap_or_else(|_| {
-            uart.write(b"RFDBG_A4_EVENT_ERR reason=timeout\r\n");
-            halt()
-        });
+    let event = next_event_or_halt(uart, controller).await;
     let matches = match (expected, event) {
         (ExpectedEvent::Initialized, WifiEvent::Initialized) => {
             uart.write(b"A4_RADIO_EVENT kind=initialized\r\n");
-            true
-        }
-        (ExpectedEvent::ScanCompleted, WifiEvent::ScanCompleted { .. }) => {
-            uart.write(b"A4_RADIO_EVENT kind=scan-completed\r\n");
             true
         }
         (ExpectedEvent::Connected, WifiEvent::Connected(_)) => {
@@ -355,9 +373,30 @@ async fn expect_event(uart: &Uart0, controller: &mut WifiController, expected: E
         _ => false,
     };
     if !matches {
-        uart.write(b"RFDBG_A4_EVENT_ERR reason=unexpected\r\n");
+        write_unexpected_event(uart, event);
         halt()
     }
+}
+
+async fn next_event_or_halt(uart: &Uart0, controller: &mut WifiController) -> WifiEvent {
+    with_timeout(EVENT_WAIT_DEADLINE, controller.next_event())
+        .await
+        .unwrap_or_else(|_| {
+            uart.write(b"RFDBG_A4_EVENT_ERR reason=timeout\r\n");
+            halt()
+        })
+}
+
+fn write_unexpected_event(uart: &Uart0, event: WifiEvent) {
+    uart.write(b"RFDBG_A4_EVENT_ERR reason=unexpected kind=");
+    match event {
+        WifiEvent::Initialized => uart.write(b"initialized"),
+        WifiEvent::ScanCompleted { .. } => uart.write(b"scan-completed"),
+        WifiEvent::Connected(_) => uart.write(b"connected"),
+        WifiEvent::Disconnected { .. } => uart.write(b"disconnected"),
+        WifiEvent::Failed(_) => uart.write(b"failed"),
+    }
+    uart.write(b"\r\n");
 }
 
 fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDevice) {
