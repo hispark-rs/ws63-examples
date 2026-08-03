@@ -76,12 +76,73 @@ fn main() -> ! {
     .expect("start native SoftAP");
     uart.write(b"RFDBG_SOFTAP_READY\r\n");
 
+    let mut next_diagnostic_ms = monotonic_ms();
     loop {
         access_point
             .poll(NonZeroU32::new(16).unwrap())
             .expect("poll native authenticator");
         access_point.wait_for_work(5).expect("wait for AP work");
+        let now = monotonic_ms();
+        if now.wrapping_sub(next_diagnostic_ms) >= 1_000 {
+            write_diagnostics(&uart, access_point.diagnostics());
+            next_diagnostic_ms = now;
+        }
     }
+}
+
+fn write_diagnostics(
+    uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
+    diagnostics: hisi_rf_ws63::AccessPointDiagnostics,
+) {
+    uart.write(b"RFDBG_SOFTAP_STATE event=");
+    uart.write(&hex8(diagnostics.events));
+    uart.write(b" last=");
+    uart.write(&hex8(diagnostics.last_event as u32));
+    uart.write(b" len=");
+    uart.write(&hex8(diagnostics.last_event_length));
+    uart.write(b" invalid=");
+    uart.write(&hex8(diagnostics.invalid_events));
+    uart.write(b" mgmt_q=");
+    uart.write(&hex8(diagnostics.management_queued));
+    uart.write(b" mgmt_drop=");
+    uart.write(&hex8(diagnostics.management_dropped));
+    uart.write(b" mgmt_feed=");
+    uart.write(&hex8(diagnostics.management_fed));
+    uart.write(b" mgmt_feed_err=");
+    uart.write(&hex8(diagnostics.management_feed_errors));
+    uart.write(b" mgmt_tx=");
+    uart.write(&hex8(diagnostics.management_transmits));
+    uart.write(b" mgmt_tx_status=");
+    uart.write(&hex8(diagnostics.last_management_status as u32));
+    uart.write(b" eapol_poll=");
+    uart.write(&hex8(diagnostics.eapol_polls));
+    uart.write(b" eapol_rx=");
+    uart.write(&hex8(diagnostics.eapol_received));
+    uart.write(b" eapol_feed=");
+    uart.write(&hex8(diagnostics.eapol_fed));
+    uart.write(b" eapol_err=");
+    uart.write(&hex8(diagnostics.eapol_errors));
+    uart.write(b" eapol_tx=");
+    uart.write(&hex8(diagnostics.eapol_transmits));
+    uart.write(b" eapol_tx_status=");
+    uart.write(&hex8(diagnostics.last_eapol_status as u32));
+    uart.write(b" key=");
+    uart.write(&hex8(diagnostics.key_installs));
+    uart.write(b" key_status=");
+    uart.write(&hex8(diagnostics.last_key_status as u32));
+    uart.write(b"\r\n");
+}
+
+fn hex8(value: u32) -> [u8; 8] {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = [0; 8];
+    let mut index = 0;
+    while index < output.len() {
+        let shift = (output.len() - 1 - index) * 4;
+        output[index] = HEX[((value >> shift) & 0xf) as usize];
+        index += 1;
+    }
+    output
 }
 
 #[unsafe(no_mangle)]
