@@ -21,9 +21,11 @@ const DNS_ATTEMPTS_PER_TARGET: u16 = 2;
 const DNS_LOCAL_PORT: u16 = 49_153;
 const DNS_PORT: u16 = 53;
 const LOCAL_PROBE_PORT: u16 = 9;
-const LOCAL_PROBE_ATTEMPTS: u8 = 5;
+const LOCAL_PROBE_PRIMARY_ATTEMPTS: u8 = 5;
+const LOCAL_PROBE_ATTEMPTS: u8 = 10;
 const LOCAL_PROBE_INTERVAL_MS: u64 = 500;
-const LOCAL_PROBE_TIMEOUT_MS: u64 = 5_000;
+const LOCAL_PROBE_RECOVERY_DELAY_MS: u64 = 5_000;
+const LOCAL_PROBE_TIMEOUT_MS: u64 = 12_000;
 const DNS_TIMEOUT_MS: u64 = 1_500;
 const DNS_RX_BUFFER_BYTES: usize = 256;
 const DNS_TX_BUFFER_BYTES: usize = 32;
@@ -442,6 +444,7 @@ async fn local_neighbor_probe(
     let started_at = monotonic_ms();
     let mut sent = 0_u8;
     let mut last_send_at = started_at.wrapping_sub(LOCAL_PROBE_INTERVAL_MS);
+    let mut recovery_announced = false;
     while monotonic_ms().wrapping_sub(started_at) < LOCAL_PROBE_TIMEOUT_MS {
         poll_network(uart, interface, device, sockets, dhcp_handle, lease);
         let socket = sockets.get_mut::<udp::Socket>(udp_handle);
@@ -461,7 +464,18 @@ async fn local_neighbor_probe(
             }
         }
         let current_ms = monotonic_ms();
+        let recovery_ready = sent < LOCAL_PROBE_PRIMARY_ATTEMPTS
+            || current_ms.wrapping_sub(started_at) >= LOCAL_PROBE_RECOVERY_DELAY_MS;
+        if sent == LOCAL_PROBE_PRIMARY_ATTEMPTS && recovery_ready && !recovery_announced {
+            uart.write(b"RF5C_LOCAL_ECHO_RECOVERY_BEGIN elapsed_ms=0x");
+            uart.write(&hex8(
+                current_ms.wrapping_sub(started_at).min(u64::from(u32::MAX)) as u32,
+            ));
+            uart.write(b"\r\n");
+            recovery_announced = true;
+        }
         if sent < LOCAL_PROBE_ATTEMPTS
+            && recovery_ready
             && current_ms.wrapping_sub(last_send_at) >= LOCAL_PROBE_INTERVAL_MS
         {
             let payload = [sent];
