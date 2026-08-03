@@ -6,12 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- Updated `wifi_softap` to the public `hisi-rf 0.1.0-alpha.80` SoftAP profile.
-  The example no longer depends directly on the hidden WS63 composition crate;
-  the facade selects the upstream authenticator and shared STA/AP radio arena.
-- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.80`, keeping the STA
-  facade on the same published WS63 backend and resource contract as the AP
-  fixture.
+- Updated both Wi-Fi fixtures to `hisi-rf 0.1.0-alpha.82` and added matching
+  repository-owned WPA3-SAE AP/STA profiles. The WPA3 AP consumes the typed
+  PKE resource and emits secret-free P-256 request/failure counters for HIL.
+  Both examples depend only on the public `hisi-rf` facade; it selects the
+  upstream authenticator or supplicant and the shared STA/AP radio arena.
+- Updated both fixtures to `hisi-rtos 0.1.0-alpha.22`, which closes the
+  on-silicon resumed switch-away race exposed by the SoftAP workload.
 - Extended `wifi_softap` into a self-contained two-board HIL endpoint with a
   fixed local IPv4 address, DHCP lease service, and bounded UDP echo. The
   `wifi_connectivity` `dual-board-hil` feature now proves WPA2, DHCP, direct

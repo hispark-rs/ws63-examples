@@ -5,10 +5,15 @@ edition = "2024"
 description = "WS63 two-board HIL SoftAP fixture"
 license = "MIT"
 
+[features]
+default = ["wpa2"]
+wpa2 = ["hisi-rf/profile-wifi-wpa2-softap"]
+wpa3 = ["hisi-rf/profile-wifi-wpa3-softap"]
+
 [dependencies]
 hisi-hal = { version = "0.7.0-alpha.6", features = ["chip-ws63", "unstable"] }
 hisi-panic-handler = { version = "0.1.0", default-features = false, features = ["panic-uart0"] }
-hisi-rf = { version = "=0.1.0-alpha.80", features = ["chip-ws63", "profile-wifi-wpa2-softap"] }
+hisi-rf = { version = "=0.1.0-alpha.82", features = ["chip-ws63"] }
 hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
     "chip-ws63",
     "bundled-memory-x",
@@ -16,7 +21,7 @@ hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
     "ws63-bgle-32k",
     "ws63-radio-main-stack-32k",
 ] }
-hisi-rtos = { version = "=0.1.0-alpha.19", features = ["chip-ws63"] }
+hisi-rtos = { version = "=0.1.0-alpha.22", features = ["chip-ws63"] }
 smoltcp = { version = "0.13", default-features = false, features = [
     "medium-ethernet",
     "proto-ipv4",

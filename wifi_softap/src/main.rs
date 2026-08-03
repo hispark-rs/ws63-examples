@@ -3,6 +3,12 @@
 #![no_main]
 #![no_std]
 
+#[cfg(any(
+    all(feature = "wpa2", feature = "wpa3"),
+    not(any(feature = "wpa2", feature = "wpa3"))
+))]
+compile_error!("select exactly one SoftAP security profile: `wpa2` or `wpa3`");
+
 #[path = "../../hil_wifi_config.rs"]
 mod config;
 mod network;
@@ -69,12 +75,17 @@ fn main() -> ! {
     .expect("start ported runtime");
     unsafe { interrupt::enable_global() };
 
+    #[cfg(feature = "wpa2")]
     let resources = AccessPointResources::new(efuse, p.KM, p.SPACC, p.TRNG, installed);
-    let mut access_point = hisi_rf::ws63::init_access_point(
-        AccessPointConfig::wpa2_personal(config::SSID, config::PASSPHRASE, config::CHANNEL),
-        resources,
-    )
-    .expect("start native SoftAP");
+    #[cfg(feature = "wpa3")]
+    let resources = AccessPointResources::new(efuse, p.KM, p.SPACC, p.PKE, p.TRNG, installed);
+    #[cfg(feature = "wpa2")]
+    let config =
+        AccessPointConfig::wpa2_personal(config::SSID, config::PASSPHRASE, config::CHANNEL);
+    #[cfg(feature = "wpa3")]
+    let config = AccessPointConfig::wpa3_sae(config::SSID, config::PASSPHRASE, config::CHANNEL);
+    let mut access_point =
+        hisi_rf::ws63::init_access_point(config, resources).expect("start native SoftAP");
     uart.write(b"RFDBG_SOFTAP_READY\r\n");
     let network_device = access_point
         .take_network_device()

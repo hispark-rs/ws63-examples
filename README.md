@@ -43,6 +43,16 @@ cargo build -Zbuild-std=core,alloc --release \
   -p wifi_connectivity --no-default-features --features wpa2,dual-board-hil
 ```
 
+To run the same repository-owned fixture as a pure WPA3-SAE network, select
+the matching profile on both boards:
+
+```bash
+cargo build -Zbuild-std=core,alloc --release \
+  -p wifi_softap --no-default-features --features wpa3
+cargo build -Zbuild-std=core,alloc --release \
+  -p wifi_connectivity --no-default-features --features wpa3,dual-board-hil
+```
+
 The fixture is an isolated `192.168.4.0/24` network. The AP leases
 `192.168.4.2`, answers UDP echo on port 9, and intentionally advertises no
 default route. Public DNS is therefore skipped by contract.

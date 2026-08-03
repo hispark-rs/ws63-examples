@@ -97,10 +97,32 @@ pub fn run(
         let current_ms = crate::monotonic_ms();
         if current_ms.wrapping_sub(next_diagnostic_ms) >= 1_000 {
             crate::write_diagnostics(uart, access_point.diagnostics());
+            #[cfg(feature = "wpa3")]
+            write_wpa3_crypto_diagnostics(uart);
             write_network_diagnostics(uart, &diagnostics);
             next_diagnostic_ms = current_ms;
         }
     }
+}
+
+#[cfg(feature = "wpa3")]
+fn write_wpa3_crypto_diagnostics(uart: &Uart0<'_>) {
+    let point = hisi_rf::ws63::hardware_p256_diagnostic_snapshot();
+    let field = hisi_rf::ws63::hardware_p256_field_diagnostic_snapshot();
+    let curve = hisi_rf::ws63::hardware_p256_curve_diagnostic_snapshot();
+    uart.write(b"RFDBG_SOFTAP_SAE p256_req=");
+    uart.write(&crate::hex8(point[0]));
+    uart.write(b" p256_fail=");
+    uart.write(&crate::hex8(point[1]));
+    uart.write(b" field_req=");
+    uart.write(&crate::hex8(field[0]));
+    uart.write(b" field_fail=");
+    uart.write(&crate::hex8(field[1]));
+    uart.write(b" curve_req=");
+    uart.write(&crate::hex8(curve[0]));
+    uart.write(b" curve_fail=");
+    uart.write(&crate::hex8(curve[1]));
+    uart.write(b"\r\n");
 }
 
 fn service_dhcp(
