@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 hisi-hal = { version = "0.7.0-alpha.6", features = ["chip-ws63", "unstable"] }
 hisi-panic-handler = { version = "0.1.0", default-features = false, features = ["panic-uart0"] }
-hisi-rf-ws63 = { version = "=0.1.0-alpha.68", default-features = false, features = ["upstream-authenticator-wpa2"] }
+hisi-rf = { version = "=0.1.0-alpha.80", features = ["chip-ws63", "profile-wifi-wpa2-softap"] }
 hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
     "chip-ws63",
     "bundled-memory-x",

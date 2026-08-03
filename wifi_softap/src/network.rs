@@ -3,7 +3,7 @@
 use core::num::NonZeroU32;
 
 use hisi_hal::uart::Uart;
-use hisi_rf_ws63::{AccessPoint, AccessPointNetworkDevice};
+use hisi_rf::ws63::{AccessPoint, AccessPointNetworkDevice};
 use smoltcp::iface::{Config, Interface, SocketSet, SocketStorage};
 use smoltcp::socket::udp;
 use smoltcp::time::Instant;
@@ -233,11 +233,11 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
     uart.write(&crate::hex8(diagnostics.echo_tx));
     uart.write(b"\r\n");
 
-    let l2 = hisi_rf_ws63::netif_smoltcp::l2_protocol_diagnostics();
+    let l2 = hisi_rf::ws63::netif_smoltcp::l2_protocol_diagnostics();
     uart.write(b"RFDBG_SOFTAP_L2 tx_count=");
-    uart.write(&crate::hex8(hisi_rf_ws63::netif_smoltcp::tx_count()));
+    uart.write(&crate::hex8(hisi_rf::ws63::netif_smoltcp::tx_count()));
     uart.write(b" tx_failed=");
-    uart.write(&crate::hex8(hisi_rf_ws63::netif::tx_failed()));
+    uart.write(&crate::hex8(hisi_rf::ws63::netif::tx_failed()));
     uart.write(b" rx_arp_req=");
     uart.write(&crate::hex8(l2.rx_arp_requests));
     uart.write(b" rx_ipv4=");
@@ -248,7 +248,7 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
     uart.write(&crate::hex8(l2.tx_ipv4));
 
     let mut frame = [0_u8; 64];
-    let length = hisi_rf_ws63::netif_smoltcp::last_tx(&mut frame);
+    let length = hisi_rf::ws63::netif_smoltcp::last_tx(&mut frame);
     uart.write(b" last_len=");
     uart.write(&crate::hex8(length as u32));
     if length >= 14 {

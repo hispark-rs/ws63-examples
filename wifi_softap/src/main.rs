@@ -19,7 +19,7 @@ use hisi_hal::timer::TimerAlarm0;
 use hisi_hal::uart::{Config as UartConfig, Uart, UartClock};
 use hisi_hal::wdt::Watchdog;
 use hisi_panic_handler as _;
-use hisi_rf_ws63::{
+use hisi_rf::ws63::{
     AccessPointConfig, AccessPointResources, InstalledAccessPointStorage,
     declare_access_point_storage,
 };
@@ -70,7 +70,7 @@ fn main() -> ! {
     unsafe { interrupt::enable_global() };
 
     let resources = AccessPointResources::new(efuse, p.KM, p.SPACC, p.TRNG, installed);
-    let mut access_point = hisi_rf_ws63::init_access_point(
+    let mut access_point = hisi_rf::ws63::init_access_point(
         AccessPointConfig::wpa2_personal(config::SSID, config::PASSPHRASE, config::CHANNEL),
         resources,
     )
@@ -84,7 +84,7 @@ fn main() -> ! {
 
 fn write_diagnostics(
     uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>,
-    diagnostics: hisi_rf_ws63::AccessPointDiagnostics,
+    diagnostics: hisi_rf::ws63::AccessPointDiagnostics,
 ) {
     uart.write(b"RFDBG_SOFTAP_STATE event=");
     uart.write(&hex8(diagnostics.events));
@@ -161,13 +161,13 @@ extern "C" fn SOFT_INT0() {
 
 unsafe fn rtos_allocate(size: usize) -> *mut u8 {
     unsafe {
-        InstalledAccessPointStorage::<{ hisi_rf_ws63::ACCESS_POINT_ARENA_BYTES }>::allocate(size)
+        InstalledAccessPointStorage::<{ hisi_rf::ws63::ACCESS_POINT_ARENA_BYTES }>::allocate(size)
     }
 }
 
 unsafe fn rtos_deallocate(pointer: *mut u8) {
     unsafe {
-        InstalledAccessPointStorage::<{ hisi_rf_ws63::ACCESS_POINT_ARENA_BYTES }>::deallocate(
+        InstalledAccessPointStorage::<{ hisi_rf::ws63::ACCESS_POINT_ARENA_BYTES }>::deallocate(
             pointer,
         )
     };

@@ -678,9 +678,9 @@ checksum = "82838ac70a30951282f15df5741eeb38f748f5347d419c91b93751ceccc49876"
 
 [[package]]
 name = "hisi-rf"
-version = "0.1.0-alpha.78"
+version = "0.1.0-alpha.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a4ba6a7ec716b37109596b096ce559b06928d56cfd35b947dadfaf537f58746"
+checksum = "c6380afb80a73b5d5d0c43ba3ebce9fd141422affd5ba7a38f39cfebf835fad1"
 dependencies = [
  "hisi-rf-core",
  "hisi-rf-ws63",
@@ -1553,7 +1553,7 @@ version = "0.1.0"
 dependencies = [
  "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-panic-handler 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "hisi-rf-ws63",
+ "hisi-rf",
  "hisi-riscv-rt 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rtos",
  "smoltcp",

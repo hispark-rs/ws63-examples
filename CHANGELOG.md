@@ -6,10 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-- Updated `wifi_softap` to `hisi-rf-ws63 0.1.0-alpha.68`, whose published
-  dependency graph includes the upstream WPA2 authenticator and the shared
-  STA/AP radio-arena contract used by the two-board fixture.
-- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.78`, keeping the STA
+- Updated `wifi_softap` to the public `hisi-rf 0.1.0-alpha.80` SoftAP profile.
+  The example no longer depends directly on the hidden WS63 composition crate;
+  the facade selects the upstream authenticator and shared STA/AP radio arena.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.80`, keeping the STA
   facade on the same published WS63 backend and resource contract as the AP
   fixture.
 - Extended `wifi_softap` into a self-contained two-board HIL endpoint with a
