@@ -253,6 +253,18 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.tx_completions));
     uart.write(b" dmac_rx=0x");
     uart.write(&hex8(data_path.dmac_rx_prepares));
+    uart.write(b" dmac_zero=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepare_zero));
+    uart.write(b" dmac_nonzero=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepare_nonzero));
+    uart.write(b" dmac_last=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepare_last_result));
+    uart.write(b" dmac_data=0x");
+    uart.write(&hex8(data_path.dmac_rx_data_frames));
+    uart.write(b" dmac_qos=0x");
+    uart.write(&hex8(data_path.dmac_rx_qos_data_frames));
+    uart.write(b" dmac_protected=0x");
+    uart.write(&hex8(data_path.dmac_rx_protected_data_frames));
     uart.write(b" vendor_rx=0x");
     uart.write(&hex8(data_path.vendor_rx_frames));
     uart.write(b" rx=0x");
