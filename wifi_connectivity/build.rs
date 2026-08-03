@@ -14,5 +14,8 @@ fn main() {
         // `rustc-link-arg` to the final binary.
         println!("cargo:rustc-link-arg=--wrap=dmac_tx_complete_event_handler");
         println!("cargo:rustc-link-arg=--wrap=dmac_rx_prepare_data_patch");
+        println!("cargo:rustc-link-arg=--wrap=hmac_rx_data_event_adapt");
+        println!("cargo:rustc-link-arg=--wrap=hmac_rx_process_data_msg");
+        println!("cargo:rustc-link-arg=--wrap=hmac_rx_data");
     }
 }
