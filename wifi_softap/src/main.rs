@@ -5,6 +5,7 @@
 
 #[path = "../../hil_wifi_config.rs"]
 mod config;
+mod network;
 
 use core::num::NonZeroU32;
 
@@ -75,19 +76,10 @@ fn main() -> ! {
     )
     .expect("start native SoftAP");
     uart.write(b"RFDBG_SOFTAP_READY\r\n");
-
-    let mut next_diagnostic_ms = monotonic_ms();
-    loop {
-        access_point
-            .poll(NonZeroU32::new(16).unwrap())
-            .expect("poll native authenticator");
-        access_point.wait_for_work(5).expect("wait for AP work");
-        let now = monotonic_ms();
-        if now.wrapping_sub(next_diagnostic_ms) >= 1_000 {
-            write_diagnostics(&uart, access_point.diagnostics());
-            next_diagnostic_ms = now;
-        }
-    }
+    let network_device = access_point
+        .take_network_device()
+        .expect("take SoftAP network device");
+    network::run(access_point, network_device, &uart)
 }
 
 fn write_diagnostics(

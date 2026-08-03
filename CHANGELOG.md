@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Extended `wifi_softap` into a self-contained two-board HIL endpoint with a
+  fixed local IPv4 address, DHCP lease service, and bounded UDP echo. The
+  `wifi_connectivity` `dual-board-hil` feature now proves WPA2, DHCP, direct
+  ARP, UDP echo, and lease renewal without a developer credential file.
+- Tightened the local connectivity gate so the isolated dual-board fixture
+  requires both direct ARP evidence and a sequence-checked UDP echo response;
+  public DNS is skipped only when DHCP intentionally supplies no default route.
 - Fixed `wifi_connectivity` scan retries so every completed scan consumes and
   validates its matching `WifiEvent`. A timed-out first attempt can no longer
   leave a stale failure ahead of the replacement scan's completion event.

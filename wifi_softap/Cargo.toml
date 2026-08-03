@@ -17,3 +17,8 @@ hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
     "ws63-radio-main-stack-32k",
 ] }
 hisi-rtos = { version = "=0.1.0-alpha.19", features = ["chip-ws63"] }
+smoltcp = { version = "0.13", default-features = false, features = [
+    "medium-ethernet",
+    "proto-ipv4",
+    "socket-udp",
+] }

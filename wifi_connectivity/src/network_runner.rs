@@ -21,7 +21,9 @@ const DNS_ATTEMPTS_PER_TARGET: u16 = 2;
 const DNS_LOCAL_PORT: u16 = 49_153;
 const DNS_PORT: u16 = 53;
 const LOCAL_PROBE_PORT: u16 = 9;
-const LOCAL_PROBE_TIMEOUT_MS: u64 = 1_500;
+const LOCAL_PROBE_ATTEMPTS: u8 = 5;
+const LOCAL_PROBE_INTERVAL_MS: u64 = 500;
+const LOCAL_PROBE_TIMEOUT_MS: u64 = 5_000;
 const DNS_TIMEOUT_MS: u64 = 1_500;
 const DNS_RX_BUFFER_BYTES: usize = 256;
 const DNS_TX_BUFFER_BYTES: usize = 32;
@@ -127,7 +129,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let dhcp_baseline = device.dhcp_diagnostics();
 
     let local_target = active_lease.router.unwrap_or(active_lease.server);
-    local_neighbor_probe(
+    let local_echo = local_neighbor_probe(
         uart,
         &mut interface,
         device,
@@ -156,11 +158,17 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     };
     let l2_gate = device.l2_protocol_diagnostics();
 
-    if l2_gate.rx_arp_replies != 0 {
+    if l2_gate.rx_arp_replies != 0 && local_echo {
         uart.write(b"RF5A_ARP_OK evidence=l2-arp-reply\r\n");
-        uart.write(b"RF5C_LOCAL_DATA_PATH_OK arp_reply=0x");
+        uart.write(b"RF5C_LOCAL_DATA_PATH_OK echo=ok arp_reply=0x");
     } else {
-        uart.write(b"RF5C_LOCAL_DATA_PATH_ERR arp_reply=0x");
+        uart.write(b"RF5C_LOCAL_DATA_PATH_ERR echo=");
+        if local_echo {
+            uart.write(b"ok");
+        } else {
+            uart.write(b"missing");
+        }
+        uart.write(b" arp_reply=0x");
     }
     uart.write(&hex8(l2_gate.rx_arp_replies));
     uart.write(b" arp_request=0x");
@@ -425,24 +433,51 @@ async fn local_neighbor_probe(
     udp_handle: SocketHandle,
     lease: &mut Option<Lease>,
     target: Ipv4Address,
-) {
+) -> bool {
     uart.write(b"RF5C_LOCAL_NEIGHBOR_BEGIN target=");
     write_ipv4(uart, target.octets());
     uart.write(b"\r\n");
 
     let endpoint = IpEndpoint::new(IpAddress::Ipv4(target), LOCAL_PROBE_PORT);
-    let sent = sockets
-        .get_mut::<udp::Socket>(udp_handle)
-        .send_slice(&[0], endpoint)
-        .is_ok();
     let started_at = monotonic_ms();
-    while sent && monotonic_ms().wrapping_sub(started_at) < LOCAL_PROBE_TIMEOUT_MS {
+    let mut sent = 0_u8;
+    let mut last_send_at = started_at.wrapping_sub(LOCAL_PROBE_INTERVAL_MS);
+    while monotonic_ms().wrapping_sub(started_at) < LOCAL_PROBE_TIMEOUT_MS {
         poll_network(uart, interface, device, sockets, dhcp_handle, lease);
-        if device.l2_protocol_diagnostics().rx_arp_replies != 0 {
-            return;
+        let socket = sockets.get_mut::<udp::Socket>(udp_handle);
+        while socket.can_recv() {
+            let Ok((response, metadata)) = socket.recv() else {
+                break;
+            };
+            if metadata.endpoint == endpoint && response.len() == 1 && response[0] < sent {
+                uart.write(b"RF5C_LOCAL_ECHO_OK target=");
+                write_ipv4(uart, target.octets());
+                uart.write(b" attempts=0x");
+                uart.write(&hex8(u32::from(sent)));
+                uart.write(b" sequence=0x");
+                uart.write(&hex8(u32::from(response[0])));
+                uart.write(b"\r\n");
+                return true;
+            }
+        }
+        let current_ms = monotonic_ms();
+        if sent < LOCAL_PROBE_ATTEMPTS
+            && current_ms.wrapping_sub(last_send_at) >= LOCAL_PROBE_INTERVAL_MS
+        {
+            let payload = [sent];
+            if socket.send_slice(&payload, endpoint).is_ok() {
+                sent = sent.saturating_add(1);
+                last_send_at = current_ms;
+            }
         }
         sleep_poll_interval().await;
     }
+    uart.write(b"RF5C_LOCAL_ECHO_ERR target=");
+    write_ipv4(uart, target.octets());
+    uart.write(b" attempts=0x");
+    uart.write(&hex8(u32::from(sent)));
+    uart.write(b"\r\n");
+    false
 }
 
 #[allow(clippy::too_many_arguments)]
