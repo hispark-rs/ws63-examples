@@ -110,6 +110,12 @@ fn write_diagnostics(
     uart.write(&hex8(diagnostics.management_fed));
     uart.write(b" mgmt_feed_err=");
     uart.write(&hex8(diagnostics.management_feed_errors));
+    uart.write(b" sta_assoc=");
+    uart.write(&hex8(diagnostics.stations_associated));
+    uart.write(b" sta_disassoc=");
+    uart.write(&hex8(diagnostics.stations_disassociated));
+    uart.write(b" sta_err=");
+    uart.write(&hex8(diagnostics.station_feed_errors));
     uart.write(b" mgmt_tx=");
     uart.write(&hex8(diagnostics.management_transmits));
     uart.write(b" mgmt_tx_status=");
