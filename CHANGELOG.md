@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated `wifi_softap` to `hisi-rf-ws63 0.1.0-alpha.68`, whose published
+  dependency graph includes the upstream WPA2 authenticator and the shared
+  STA/AP radio-arena contract used by the two-board fixture.
+- Updated `wifi_connectivity` to `hisi-rf 0.1.0-alpha.78`, keeping the STA
+  facade on the same published WS63 backend and resource contract as the AP
+  fixture.
 - Extended `wifi_softap` into a self-contained two-board HIL endpoint with a
   fixed local IPv4 address, DHCP lease service, and bounded UDP echo. The
   `wifi_connectivity` `dual-board-hil` feature now proves WPA2, DHCP, direct
