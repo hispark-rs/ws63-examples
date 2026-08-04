@@ -172,6 +172,16 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.mac_key_search_failures));
         uart.write(b" irq45=");
         uart.write(&hex8(diagnostics.wlmac_irqs));
+        uart.write(b" mac_tx_hi=");
+        uart.write(&hex8(diagnostics.mac_tx_high_priority_mpdu));
+        uart.write(b" mac_tx_norm=");
+        uart.write(&hex8(diagnostics.mac_tx_normal_priority_mpdu));
+        uart.write(b" mac_tx_ampdu_mpdu=");
+        uart.write(&hex8(diagnostics.mac_tx_mpdu_in_ampdu));
+        uart.write(b" mac_tx_ampdu=");
+        uart.write(&hex8(diagnostics.mac_tx_ampdu));
+        uart.write(b" mac_tx_irq=");
+        uart.write(&hex8(diagnostics.mac_tx_complete_interrupts));
     }
     uart.write(b"\r\n");
 }
