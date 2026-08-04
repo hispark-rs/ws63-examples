@@ -314,16 +314,39 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
         write_hex_bytes(uart, &frame[12..14]);
     }
     if length >= 42 && frame[12..14] == [0x08, 0x00] && frame[23] == 17 {
-        uart.write(b" ip_dst=");
-        write_ipv4(uart, [frame[30], frame[31], frame[32], frame[33]]);
-        uart.write(b" udp_src=");
-        uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
-            frame[34], frame[35],
-        ]))));
-        uart.write(b" udp_dst=");
-        uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
-            frame[36], frame[37],
-        ]))));
+        let udp = 14 + usize::from(frame[14] & 0x0f) * 4;
+        if udp + 8 <= length.min(frame.len()) {
+            uart.write(b" ip_dst=");
+            write_ipv4(uart, [frame[30], frame[31], frame[32], frame[33]]);
+            uart.write(b" ip_len=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[16], frame[17],
+            ]))));
+            uart.write(b" ip_sum=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[24], frame[25],
+            ]))));
+            uart.write(b" udp_src=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[udp],
+                frame[udp + 1],
+            ]))));
+            uart.write(b" udp_dst=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[udp + 2],
+                frame[udp + 3],
+            ]))));
+            uart.write(b" udp_len=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[udp + 4],
+                frame[udp + 5],
+            ]))));
+            uart.write(b" udp_sum=");
+            uart.write(&crate::hex8(u32::from(u16::from_be_bytes([
+                frame[udp + 6],
+                frame[udp + 7],
+            ]))));
+        }
     }
     uart.write(b"\r\n");
 }

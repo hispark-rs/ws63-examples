@@ -241,6 +241,8 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let data_path = diagnostics.data_path;
     let mut last_tx = [0_u8; 64];
     let last_tx_len = device.last_transmitted_frame(&mut last_tx);
+    let mut last_rx = [0_u8; 64];
+    let last_rx_len = device.last_received_frame(&mut last_rx);
     uart.write(b"RF5C_CONNECTIVITY_SUMMARY arp_request=0x");
     uart.write(&hex8(l2.tx_arp_requests));
     uart.write(b" arp_reply=0x");
@@ -359,6 +361,59 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
             last_tx[12],
             last_tx[13],
         ]))));
+    }
+    uart.write(b" last_rx_len=0x");
+    uart.write(&hex8(last_rx_len.min(u32::MAX as usize) as u32));
+    if last_rx_len >= 14 {
+        uart.write(b" last_rx_src_hi=0x");
+        uart.write(&hex8(u32::from_be_bytes([
+            last_rx[6], last_rx[7], last_rx[8], last_rx[9],
+        ])));
+        uart.write(b" last_rx_src_lo=0x");
+        uart.write(&hex8(u32::from(u16::from_be_bytes([
+            last_rx[10],
+            last_rx[11],
+        ]))));
+        uart.write(b" last_rx_ethertype=0x");
+        uart.write(&hex8(u32::from(u16::from_be_bytes([
+            last_rx[12],
+            last_rx[13],
+        ]))));
+    }
+    if last_rx_len >= 42 && last_rx[12..14] == [0x08, 0x00] && last_rx[23] == 17 {
+        let udp = 14 + usize::from(last_rx[14] & 0x0f) * 4;
+        if udp + 8 <= last_rx.len() {
+            uart.write(b" last_rx_ip_len=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[16],
+                last_rx[17],
+            ]))));
+            uart.write(b" last_rx_ip_sum=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[24],
+                last_rx[25],
+            ]))));
+            uart.write(b" last_rx_udp_src=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[udp],
+                last_rx[udp + 1],
+            ]))));
+            uart.write(b" last_rx_udp_dst=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[udp + 2],
+                last_rx[udp + 3],
+            ]))));
+            uart.write(b" last_rx_udp_len=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[udp + 4],
+                last_rx[udp + 5],
+            ]))));
+            uart.write(b" last_rx_udp_sum=0x");
+            uart.write(&hex8(u32::from(u16::from_be_bytes([
+                last_rx[udp + 6],
+                last_rx[udp + 7],
+            ]))));
+        }
     }
     uart.write(b"\r\n");
     super::write_rtos_task_diagnostics(uart);
