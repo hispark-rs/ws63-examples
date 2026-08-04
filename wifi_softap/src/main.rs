@@ -214,6 +214,64 @@ fn write_diagnostics(
     uart.write(b"\r\n");
 }
 
+pub(crate) fn write_rtos_task_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    let scheduler = hisi_rtos::diagnostics();
+    uart.write(b"RFDBG_SOFTAP_SCHED switches=0x");
+    uart.write(&hex8(scheduler.context_switches));
+    uart.write(b" irq_preempt=0x");
+    uart.write(&hex8(scheduler.irq_preemptions));
+    uart.write(b" ready=0x");
+    uart.write(&hex8(u32::from(scheduler.ready_tasks)));
+    uart.write(b" blocked=0x");
+    uart.write(&hex8(u32::from(scheduler.blocked_tasks)));
+    uart.write(b" lock_depth=0x");
+    uart.write(&hex8(u32::from(scheduler.current_lock_depth)));
+    uart.write(b" lock_overrun=0x");
+    uart.write(&hex8(scheduler.scheduler_lock_overruns));
+    uart.write(b"\r\n");
+
+    let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 17];
+    let count = hisi_rtos::task_diagnostics(&mut tasks);
+    for task in &tasks[..count] {
+        uart.write(b"RFDBG_SOFTAP_TASK id=0x");
+        uart.write(&hex8(task.task as u32));
+        uart.write(b" state=");
+        uart.write(task_state_name(task.state));
+        uart.write(b" entry=0x");
+        uart.write(&hex8(task.entry as u32));
+        uart.write(b" base_prio=0x");
+        uart.write(&hex8(u32::from(task.base_priority)));
+        uart.write(b" prio=0x");
+        uart.write(&hex8(u32::from(task.priority)));
+        uart.write(b" dispatches=0x");
+        uart.write(&hex8(task.dispatches));
+        uart.write(b" max_ready_ms=0x");
+        uart.write(&hex8(
+            task.max_ready_latency_ms.min(u64::from(u32::MAX)) as u32
+        ));
+        uart.write(b" max_run_ms=0x");
+        uart.write(&hex8(
+            task.max_continuous_run_ms.min(u64::from(u32::MAX)) as u32
+        ));
+        uart.write(b" max_lock_ms=0x");
+        uart.write(&hex8(
+            task.max_scheduler_lock_ms.min(u64::from(u32::MAX)) as u32
+        ));
+        uart.write(b"\r\n");
+    }
+}
+
+const fn task_state_name(state: hisi_rtos::TaskState) -> &'static [u8] {
+    match state {
+        hisi_rtos::TaskState::Free => b"free",
+        hisi_rtos::TaskState::Ready => b"ready",
+        hisi_rtos::TaskState::Running => b"running",
+        hisi_rtos::TaskState::Blocked => b"blocked",
+        hisi_rtos::TaskState::Sleeping => b"sleeping",
+        hisi_rtos::TaskState::Throttled => b"throttled",
+    }
+}
+
 fn hex8(value: u32) -> [u8; 8] {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = [0; 8];

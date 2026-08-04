@@ -98,6 +98,7 @@ pub fn run(
     uart.write(b"RFDBG_SOFTAP_NET_READY ip=192.168.4.1 lease=192.168.4.2 echo=9\r\n");
     let mut diagnostics = NetworkDiagnostics::default();
     let mut next_diagnostic_ms = crate::monotonic_ms();
+    let mut next_task_diagnostic_ms = crate::monotonic_ms();
     loop {
         access_point
             .poll(NonZeroU32::new(16).unwrap())
@@ -141,6 +142,10 @@ pub fn run(
             write_wpa3_crypto_diagnostics(uart);
             write_network_diagnostics(uart, &diagnostics);
             next_diagnostic_ms = current_ms;
+        }
+        if current_ms.wrapping_sub(next_task_diagnostic_ms) >= 5_000 {
+            crate::write_rtos_task_diagnostics(uart);
+            next_task_diagnostic_ms = current_ms;
         }
     }
 }
