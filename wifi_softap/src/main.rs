@@ -147,8 +147,26 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_tx_failed));
         uart.write(b" data_vendor_tx=");
         uart.write(&hex8(diagnostics.data_vendor_tx_frames));
+        uart.write(b" pbuf_ref=");
+        uart.write(&hex8(diagnostics.data_tx_reference_diagnostics[0]));
+        uart.write(b" tx_ref=");
+        uart.write(&hex8(diagnostics.data_tx_reference_diagnostics[1]));
+        uart.write(b" tx_no_ref=");
+        uart.write(&hex8(diagnostics.data_tx_reference_diagnostics[2]));
         uart.write(b" data_tx_complete=");
         uart.write(&hex8(diagnostics.data_tx_completions));
+        uart.write(b" data_tx_trace_total=");
+        uart.write(&hex8(diagnostics.data_tx_completion_trace.0));
+        uart.write(b" data_tx_trace=");
+        for entry in diagnostics.data_tx_completion_trace.1 {
+            uart.write(&hex8(entry));
+            uart.write(b",");
+        }
+        uart.write(b" data_tx_pn_trace=");
+        for packet_number in diagnostics.data_tx_completion_trace.2 {
+            uart.write(&hex8(packet_number));
+            uart.write(b",");
+        }
         uart.write(b" data_tx_status=");
         for status in diagnostics.data_tx_completion_status {
             uart.write(&hex8(status));
@@ -172,6 +190,16 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.mac_key_search_failures));
         uart.write(b" irq45=");
         uart.write(&hex8(diagnostics.wlmac_irqs));
+        uart.write(b" irq45_en_calls=");
+        uart.write(&hex8(diagnostics.wlmac_irq_lifecycle[0]));
+        uart.write(b" irq45_dis_calls=");
+        uart.write(&hex8(diagnostics.wlmac_irq_lifecycle[1]));
+        uart.write(b" irq45_clr_calls=");
+        uart.write(&hex8(diagnostics.wlmac_irq_lifecycle[2]));
+        uart.write(b" irq45_enabled=");
+        uart.write(&hex8(diagnostics.wlmac_irq_lifecycle[4]));
+        uart.write(b" irq45_pending=");
+        uart.write(&hex8(diagnostics.wlmac_irq_lifecycle[5]));
         uart.write(b" mac_tx_hi=");
         uart.write(&hex8(diagnostics.mac_tx_high_priority_mpdu));
         uart.write(b" mac_tx_norm=");

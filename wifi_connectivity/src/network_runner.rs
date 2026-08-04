@@ -23,6 +23,7 @@ const DNS_PORT: u16 = 53;
 const LOCAL_PROBE_PORT: u16 = 9;
 const LOCAL_PROBE_PRIMARY_ATTEMPTS: u8 = 5;
 const LOCAL_PROBE_ATTEMPTS: u8 = 10;
+const LOCAL_PROBE_REQUIRED_REPLIES: u8 = 5;
 const LOCAL_PROBE_INTERVAL_MS: u64 = 500;
 const LOCAL_PROBE_RECOVERY_DELAY_MS: u64 = 5_000;
 const LOCAL_PROBE_TIMEOUT_MS: u64 = 12_000;
@@ -298,6 +299,12 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.instrumented_capabilities));
     uart.write(b" tx_failed=0x");
     uart.write(&hex8(data_path.tx_failed));
+    uart.write(b" pbuf_ref=0x");
+    uart.write(&hex8(data_path.tx_reference_diagnostics[0]));
+    uart.write(b" tx_ref=0x");
+    uart.write(&hex8(data_path.tx_reference_diagnostics[1]));
+    uart.write(b" tx_no_ref=0x");
+    uart.write(&hex8(data_path.tx_reference_diagnostics[2]));
     uart.write(b" vendor_tx=0x");
     uart.write(&hex8(data_path.vendor_tx_frames));
     uart.write(b" tx_complete=0x");
@@ -362,6 +369,16 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.wlphy_irqs));
     uart.write(b" irq45=0x");
     uart.write(&hex8(data_path.wlmac_irqs));
+    uart.write(b" irq45_en_calls=0x");
+    uart.write(&hex8(data_path.wlmac_irq_lifecycle[0]));
+    uart.write(b" irq45_dis_calls=0x");
+    uart.write(&hex8(data_path.wlmac_irq_lifecycle[1]));
+    uart.write(b" irq45_clr_calls=0x");
+    uart.write(&hex8(data_path.wlmac_irq_lifecycle[2]));
+    uart.write(b" irq45_enabled=0x");
+    uart.write(&hex8(data_path.wlmac_irq_lifecycle[4]));
+    uart.write(b" irq45_pending=0x");
+    uart.write(&hex8(data_path.wlmac_irq_lifecycle[5]));
     uart.write(b" last_tx_len=0x");
     uart.write(&hex8(last_tx_len.min(u32::MAX as usize) as u32));
     if last_tx_len >= 14 {
@@ -450,6 +467,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn keep_polling(
     uart: &Uart0,
     controller: &WifiController,
@@ -632,6 +650,8 @@ async fn local_neighbor_probe(
     let endpoint = IpEndpoint::new(IpAddress::Ipv4(target), LOCAL_PROBE_PORT);
     let started_at = monotonic_ms();
     let mut sent = 0_u8;
+    let mut replies = 0_u8;
+    let mut received_sequences = 0_u16;
     let mut last_send_at = started_at.wrapping_sub(LOCAL_PROBE_INTERVAL_MS);
     let mut recovery_announced = false;
     while monotonic_ms().wrapping_sub(started_at) < LOCAL_PROBE_TIMEOUT_MS {
@@ -642,14 +662,30 @@ async fn local_neighbor_probe(
                 break;
             };
             if metadata.endpoint == endpoint && response.len() == 1 && response[0] < sent {
-                uart.write(b"RF5C_LOCAL_ECHO_OK target=");
-                write_ipv4(uart, target.octets());
-                uart.write(b" attempts=0x");
-                uart.write(&hex8(u32::from(sent)));
-                uart.write(b" sequence=0x");
-                uart.write(&hex8(u32::from(response[0])));
+                let sequence = response[0];
+                let sequence_bit = 1_u16 << sequence;
+                if received_sequences & sequence_bit != 0 {
+                    continue;
+                }
+                received_sequences |= sequence_bit;
+                replies = replies.saturating_add(1);
+                #[cfg(feature = "data-path-diagnostics")]
+                write_local_probe_data_path(uart, device, sequence, b"receive");
+                uart.write(b"RF5C_LOCAL_ECHO_REPLY sequence=0x");
+                uart.write(&hex8(u32::from(sequence)));
+                uart.write(b" replies=0x");
+                uart.write(&hex8(u32::from(replies)));
                 uart.write(b"\r\n");
-                return true;
+                if replies >= LOCAL_PROBE_REQUIRED_REPLIES {
+                    uart.write(b"RF5C_LOCAL_ECHO_OK target=");
+                    write_ipv4(uart, target.octets());
+                    uart.write(b" attempts=0x");
+                    uart.write(&hex8(u32::from(sent)));
+                    uart.write(b" replies=0x");
+                    uart.write(&hex8(u32::from(replies)));
+                    uart.write(b"\r\n");
+                    return true;
+                }
             }
         }
         let current_ms = monotonic_ms();
@@ -667,6 +703,8 @@ async fn local_neighbor_probe(
             && recovery_ready
             && current_ms.wrapping_sub(last_send_at) >= LOCAL_PROBE_INTERVAL_MS
         {
+            #[cfg(feature = "data-path-diagnostics")]
+            write_local_probe_data_path(uart, device, sent, b"send");
             let payload = [sent];
             if socket.send_slice(&payload, endpoint).is_ok() {
                 sent = sent.saturating_add(1);
@@ -675,12 +713,52 @@ async fn local_neighbor_probe(
         }
         sleep_poll_interval().await;
     }
+    #[cfg(feature = "data-path-diagnostics")]
+    write_local_probe_data_path(uart, device, sent, b"timeout");
     uart.write(b"RF5C_LOCAL_ECHO_ERR target=");
     write_ipv4(uart, target.octets());
     uart.write(b" attempts=0x");
     uart.write(&hex8(u32::from(sent)));
+    uart.write(b" replies=0x");
+    uart.write(&hex8(u32::from(replies)));
     uart.write(b"\r\n");
     false
+}
+
+#[cfg(feature = "data-path-diagnostics")]
+fn write_local_probe_data_path(uart: &Uart0, device: &WifiDevice, sequence: u8, phase: &[u8]) {
+    let data_path = device.data_path_diagnostics();
+    uart.write(b"RFDBG_LOCAL_ECHO_PATH sequence=0x");
+    uart.write(&hex8(u32::from(sequence)));
+    uart.write(b" phase=");
+    uart.write(phase);
+    uart.write(b" mac_ok=0x");
+    uart.write(&hex8(data_path.mac_rx_successful_mpdu));
+    uart.write(b" mac_fail=0x");
+    uart.write(&hex8(data_path.mac_rx_failed_mpdu));
+    uart.write(b" mac_filter=0x");
+    uart.write(&hex8(data_path.mac_rx_filtered_mpdu));
+    uart.write(b" dmac_rx=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepares));
+    uart.write(b" hmac_event=0x");
+    uart.write(&hex8(data_path.hmac_rx_data_event_adapt_calls));
+    uart.write(b" hmac_msg=0x");
+    uart.write(&hex8(data_path.hmac_rx_process_data_msg_calls));
+    uart.write(b" hmac_data=0x");
+    uart.write(&hex8(data_path.hmac_rx_data_calls));
+    uart.write(b" vendor_rx=0x");
+    uart.write(&hex8(data_path.vendor_rx_frames));
+    uart.write(b" rust_rx=0x");
+    uart.write(&hex8(data_path.rx_frames));
+    uart.write(b" ccmp_replay=0x");
+    uart.write(&hex8(data_path.mac_ccmp_replay_failures));
+    uart.write(b" ccmp_mic=0x");
+    uart.write(&hex8(data_path.mac_ccmp_mic_failures));
+    uart.write(b" key_search=0x");
+    uart.write(&hex8(data_path.mac_key_search_failures));
+    uart.write(b" irq45=0x");
+    uart.write(&hex8(data_path.wlmac_irqs));
+    uart.write(b"\r\n");
 }
 
 #[allow(clippy::too_many_arguments)]

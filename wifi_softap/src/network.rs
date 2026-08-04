@@ -43,6 +43,16 @@ struct NetworkDiagnostics {
     dhcp_last_transaction_id: u32,
     echo_rx: u32,
     echo_tx: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    echo_mac_samples: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    echo_mac_normal_baseline: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    echo_mac_normal_latest: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    echo_mac_complete_baseline: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    echo_mac_complete_latest: u32,
 }
 
 pub fn run(
@@ -95,12 +105,37 @@ pub fn run(
         let timestamp = now();
         let _ = interface.poll(timestamp, &mut device, &mut sockets);
         service_dhcp(&mut sockets, dhcp_handle, &mut diagnostics);
-        service_echo(&mut sockets, echo_handle, &mut diagnostics);
+        let echo_sequence = service_echo(&mut sockets, echo_handle, &mut diagnostics);
+        #[cfg(not(feature = "data-path-diagnostics"))]
+        let _ = echo_sequence;
+        #[cfg(feature = "data-path-diagnostics")]
+        let echo_before = echo_sequence.map(|_| access_point.diagnostics());
+        #[cfg(feature = "data-path-diagnostics")]
+        if let Some(before) = echo_before
+            && diagnostics.echo_mac_samples == 0
+        {
+            diagnostics.echo_mac_normal_baseline = before.mac_tx_normal_priority_mpdu;
+            diagnostics.echo_mac_complete_baseline = before.mac_tx_complete_interrupts;
+        }
         let _ = interface.poll(timestamp, &mut device, &mut sockets);
         access_point.wait_for_work(5).expect("wait for AP work");
+        #[cfg(feature = "data-path-diagnostics")]
+        if let (Some(sequence), Some(before)) = (echo_sequence, echo_before) {
+            let after = access_point.diagnostics();
+            diagnostics.echo_mac_samples = diagnostics.echo_mac_samples.saturating_add(1);
+            diagnostics.echo_mac_normal_latest = after.mac_tx_normal_priority_mpdu;
+            diagnostics.echo_mac_complete_latest = after.mac_tx_complete_interrupts;
+            write_echo_path_diagnostics(uart, sequence, before, after);
+        }
 
         let current_ms = crate::monotonic_ms();
         if current_ms.wrapping_sub(next_diagnostic_ms) >= 1_000 {
+            #[cfg(feature = "data-path-diagnostics")]
+            if diagnostics.echo_mac_samples != 0 {
+                let latest = access_point.diagnostics();
+                diagnostics.echo_mac_normal_latest = latest.mac_tx_normal_priority_mpdu;
+                diagnostics.echo_mac_complete_latest = latest.mac_tx_complete_interrupts;
+            }
             crate::write_diagnostics(uart, access_point.diagnostics());
             #[cfg(feature = "wpa3")]
             write_wpa3_crypto_diagnostics(uart);
@@ -240,13 +275,13 @@ fn service_echo(
     sockets: &mut SocketSet<'_>,
     handle: smoltcp::iface::SocketHandle,
     diagnostics: &mut NetworkDiagnostics,
-) {
+) -> Option<u8> {
     let mut payload = [0_u8; 256];
     let received = sockets
         .get_mut::<udp::Socket>(handle)
         .recv_slice(&mut payload);
     let Ok((length, metadata)) = received else {
-        return;
+        return None;
     };
     diagnostics.echo_rx = diagnostics.echo_rx.saturating_add(1);
     if sockets
@@ -255,7 +290,55 @@ fn service_echo(
         .is_ok()
     {
         diagnostics.echo_tx = diagnostics.echo_tx.saturating_add(1);
+        (length == 1).then_some(payload[0])
+    } else {
+        None
     }
+}
+
+#[cfg(feature = "data-path-diagnostics")]
+fn write_echo_path_diagnostics(
+    uart: &Uart0<'_>,
+    sequence: u8,
+    before: hisi_rf::ws63::AccessPointDiagnostics,
+    after: hisi_rf::ws63::AccessPointDiagnostics,
+) {
+    uart.write(b"RFDBG_SOFTAP_ECHO_PATH sequence=0x");
+    uart.write(&crate::hex8(u32::from(sequence)));
+    uart.write(b" vendor_tx_delta=0x");
+    uart.write(&crate::hex8(
+        after
+            .data_vendor_tx_frames
+            .wrapping_sub(before.data_vendor_tx_frames),
+    ));
+    uart.write(b" tx_complete_delta=0x");
+    uart.write(&crate::hex8(
+        after
+            .data_tx_completions
+            .wrapping_sub(before.data_tx_completions),
+    ));
+    uart.write(b" mac_norm_delta=0x");
+    uart.write(&crate::hex8(
+        after
+            .mac_tx_normal_priority_mpdu
+            .wrapping_sub(before.mac_tx_normal_priority_mpdu),
+    ));
+    uart.write(b" mac_irq_delta=0x");
+    uart.write(&crate::hex8(
+        after
+            .mac_tx_complete_interrupts
+            .wrapping_sub(before.mac_tx_complete_interrupts),
+    ));
+    uart.write(b" tx_status_delta=");
+    for (before, after) in before
+        .data_tx_completion_status
+        .into_iter()
+        .zip(after.data_tx_completion_status)
+    {
+        uart.write(&crate::hex8(after.wrapping_sub(before)));
+        uart.write(b",");
+    }
+    uart.write(b"\r\n");
 }
 
 fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics) {
@@ -277,6 +360,23 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
     uart.write(&crate::hex8(diagnostics.echo_rx));
     uart.write(b" echo_tx=");
     uart.write(&crate::hex8(diagnostics.echo_tx));
+    #[cfg(feature = "data-path-diagnostics")]
+    {
+        uart.write(b" echo_mac_samples=");
+        uart.write(&crate::hex8(diagnostics.echo_mac_samples));
+        uart.write(b" echo_mac_norm_delta=");
+        uart.write(&crate::hex8(
+            diagnostics
+                .echo_mac_normal_latest
+                .wrapping_sub(diagnostics.echo_mac_normal_baseline),
+        ));
+        uart.write(b" echo_mac_irq_delta=");
+        uart.write(&crate::hex8(
+            diagnostics
+                .echo_mac_complete_latest
+                .wrapping_sub(diagnostics.echo_mac_complete_baseline),
+        ));
+    }
     uart.write(b"\r\n");
 
     let l2 = hisi_rf::ws63::netif_smoltcp::l2_protocol_diagnostics();
