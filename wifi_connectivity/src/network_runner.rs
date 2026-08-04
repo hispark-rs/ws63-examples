@@ -275,6 +275,16 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.mac_rx_failed_mpdu));
     uart.write(b" mac_rx_filter=0x");
     uart.write(&hex8(data_path.mac_rx_filtered_mpdu));
+    uart.write(b" ccmp_replay=0x");
+    uart.write(&hex8(data_path.mac_ccmp_replay_failures));
+    uart.write(b" tkip_replay=0x");
+    uart.write(&hex8(data_path.mac_tkip_replay_failures));
+    uart.write(b" ccmp_mic=0x");
+    uart.write(&hex8(data_path.mac_ccmp_mic_failures));
+    uart.write(b" tkip_mic=0x");
+    uart.write(&hex8(data_path.mac_tkip_mic_failures));
+    uart.write(b" key_search_fail=0x");
+    uart.write(&hex8(data_path.mac_key_search_failures));
     uart.write(b" rx_filter_ctl=0x");
     uart.write(&hex8(data_path.mac_rx_filter_control));
     uart.write(b" sta_addr_match=0x");
