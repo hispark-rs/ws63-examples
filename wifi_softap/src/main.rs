@@ -149,6 +149,11 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_vendor_tx_frames));
         uart.write(b" data_tx_complete=");
         uart.write(&hex8(diagnostics.data_tx_completions));
+        uart.write(b" data_tx_status=");
+        for status in diagnostics.data_tx_completion_status {
+            uart.write(&hex8(status));
+            uart.write(b",");
+        }
         uart.write(b" data_dmac_rx=");
         uart.write(&hex8(diagnostics.data_dmac_rx_prepares));
         uart.write(b" data_hmac_event=");
