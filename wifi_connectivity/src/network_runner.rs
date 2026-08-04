@@ -117,14 +117,44 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     }
 
     let Some(active_lease) = lease else {
-        let queue = device.rx_queue_diagnostics();
-        let dhcp = device.dhcp_diagnostics();
+        let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
+        let queue = diagnostics.rx_queue;
+        let dhcp = diagnostics.dhcp;
+        let data_path = diagnostics.data_path;
         uart.write(b"RF5A_DHCP_TIMEOUT rx_drop=0x");
         uart.write(&hex8(queue.dropped));
         uart.write(b" client=0x");
         uart.write(&hex8(dhcp.client_packets));
         uart.write(b" server=0x");
         uart.write(&hex8(dhcp.server_packets));
+        uart.write(b"\r\nRFDBG_A5B_DHCP_TIMEOUT_PATH dmac_rx=0x");
+        uart.write(&hex8(data_path.dmac_rx_prepares));
+        uart.write(b" hmac_event=0x");
+        uart.write(&hex8(data_path.hmac_rx_data_event_adapt_calls));
+        uart.write(b" hmac_msg=0x");
+        uart.write(&hex8(data_path.hmac_rx_process_data_msg_calls));
+        uart.write(b" hmac_data=0x");
+        uart.write(&hex8(data_path.hmac_rx_data_calls));
+        uart.write(b" vendor_rx=0x");
+        uart.write(&hex8(data_path.vendor_rx_frames));
+        uart.write(b" mac_rx_ok=0x");
+        uart.write(&hex8(data_path.mac_rx_successful_mpdu));
+        uart.write(b" mac_rx_fail=0x");
+        uart.write(&hex8(data_path.mac_rx_failed_mpdu));
+        uart.write(b" mac_rx_filter=0x");
+        uart.write(&hex8(data_path.mac_rx_filtered_mpdu));
+        uart.write(b" ccmp_replay=0x");
+        uart.write(&hex8(data_path.mac_ccmp_replay_failures));
+        uart.write(b" tkip_replay=0x");
+        uart.write(&hex8(data_path.mac_tkip_replay_failures));
+        uart.write(b" ccmp_mic=0x");
+        uart.write(&hex8(data_path.mac_ccmp_mic_failures));
+        uart.write(b" tkip_mic=0x");
+        uart.write(&hex8(data_path.mac_tkip_mic_failures));
+        uart.write(b" key_search_fail=0x");
+        uart.write(&hex8(data_path.mac_key_search_failures));
+        uart.write(b" irq45=0x");
+        uart.write(&hex8(data_path.wlmac_irqs));
         uart.write(b"\r\nA4_NET_ERR:dhcp-timeout\r\n");
         halt()
     };
