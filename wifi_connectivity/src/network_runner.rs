@@ -1,8 +1,8 @@
 //! Application-owned long-lived IPv4 runner for the connectivity contract.
 
-use embassy_time::{Duration as EmbassyDuration, Timer};
-use hisi_rf::WifiController;
+use embassy_time::Duration as EmbassyDuration;
 use hisi_rf::ws63::{DhcpDiagnostics, WifiDevice};
+use hisi_rf::{WifiController, WifiEvent};
 use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet, SocketStorage};
 use smoltcp::socket::{dhcpv4, udp};
 use smoltcp::time::{Duration, Instant};
@@ -62,8 +62,18 @@ struct DnsStats {
     successful_target: Option<Ipv4Address>,
 }
 
-/// Own the L2 device and IP state for the rest of the firmware lifetime.
-pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut WifiDevice) -> ! {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum NetworkExit {
+    Disconnected { reason: u16 },
+    BackendFailed,
+}
+
+/// Own the L2 device and IP state until the control plane reports link loss.
+pub(super) async fn run(
+    uart: &Uart0,
+    controller: &mut WifiController,
+    device: &mut WifiDevice,
+) -> NetworkExit {
     let Some(mac) = device.station_mac_address() else {
         uart.write(b"A4_NET_ERR:no-mac\r\n");
         halt()
@@ -114,7 +124,9 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
             dhcp_handle,
             &mut lease,
         );
-        sleep_poll_interval().await;
+        if let Some(exit) = wait_poll_interval(uart, controller).await {
+            return exit;
+        }
     }
 
     let Some(active_lease) = lease else {
@@ -163,8 +175,9 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let tx_completion_baseline = device.data_path_diagnostics().tx_completion_status;
 
     let local_target = active_lease.router.unwrap_or(active_lease.server);
-    let local_echo = local_neighbor_probe(
+    let local_echo = match local_neighbor_probe(
         uart,
+        controller,
         &mut interface,
         device,
         &mut sockets,
@@ -173,10 +186,15 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         &mut lease,
         local_target,
     )
-    .await;
+    .await
+    {
+        Ok(value) => value,
+        Err(exit) => return exit,
+    };
     let dns_stats = if active_lease.router.is_some() {
-        dns_probe(
+        match dns_probe(
             uart,
+            controller,
             &mut interface,
             device,
             &mut sockets,
@@ -186,6 +204,10 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
             &PUBLIC_TARGETS,
         )
         .await
+        {
+            Ok(value) => value,
+            Err(exit) => return exit,
+        }
     } else {
         uart.write(b"RF5C_PUBLIC_DNS_SKIP reason=no-default-route\r\n");
         DnsStats::default()
@@ -470,14 +492,14 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
 #[allow(clippy::too_many_arguments)]
 async fn keep_polling(
     uart: &Uart0,
-    controller: &WifiController,
+    controller: &mut WifiController,
     interface: &mut Interface,
     device: &mut WifiDevice,
     sockets: &mut SocketSet<'_>,
     dhcp_handle: SocketHandle,
     lease: &mut Option<Lease>,
     dhcp_baseline: DhcpDiagnostics,
-) -> ! {
+) -> NetworkExit {
     let mut heartbeat_at = monotonic_ms().saturating_add(10_000);
     let mut renew_reported = false;
     let mut dhcp_restart_at = None;
@@ -521,7 +543,9 @@ async fn keep_polling(
             });
             heartbeat_at = current.saturating_add(10_000);
         }
-        sleep_poll_interval().await;
+        if let Some(exit) = wait_poll_interval(uart, controller).await {
+            return exit;
+        }
     }
 }
 
@@ -635,6 +659,7 @@ fn poll_network(
 #[allow(clippy::too_many_arguments)]
 async fn local_neighbor_probe(
     uart: &Uart0,
+    controller: &mut WifiController,
     interface: &mut Interface,
     device: &mut WifiDevice,
     sockets: &mut SocketSet<'_>,
@@ -642,7 +667,7 @@ async fn local_neighbor_probe(
     udp_handle: SocketHandle,
     lease: &mut Option<Lease>,
     target: Ipv4Address,
-) -> bool {
+) -> Result<bool, NetworkExit> {
     uart.write(b"RF5C_LOCAL_NEIGHBOR_BEGIN target=");
     write_ipv4(uart, target.octets());
     uart.write(b"\r\n");
@@ -684,7 +709,7 @@ async fn local_neighbor_probe(
                     uart.write(b" replies=0x");
                     uart.write(&hex8(u32::from(replies)));
                     uart.write(b"\r\n");
-                    return true;
+                    return Ok(true);
                 }
             }
         }
@@ -711,7 +736,9 @@ async fn local_neighbor_probe(
                 last_send_at = current_ms;
             }
         }
-        sleep_poll_interval().await;
+        if let Some(exit) = wait_poll_interval(uart, controller).await {
+            return Err(exit);
+        }
     }
     #[cfg(feature = "data-path-diagnostics")]
     write_local_probe_data_path(uart, device, sent, b"timeout");
@@ -722,7 +749,7 @@ async fn local_neighbor_probe(
     uart.write(b" replies=0x");
     uart.write(&hex8(u32::from(replies)));
     uart.write(b"\r\n");
-    false
+    Ok(false)
 }
 
 #[cfg(feature = "data-path-diagnostics")]
@@ -764,6 +791,7 @@ fn write_local_probe_data_path(uart: &Uart0, device: &WifiDevice, sequence: u8, 
 #[allow(clippy::too_many_arguments)]
 async fn dns_probe(
     uart: &Uart0,
+    controller: &mut WifiController,
     interface: &mut Interface,
     device: &mut WifiDevice,
     sockets: &mut SocketSet<'_>,
@@ -771,7 +799,7 @@ async fn dns_probe(
     dns_handle: SocketHandle,
     lease: &mut Option<Lease>,
     targets: &[Ipv4Address],
-) -> DnsStats {
+) -> Result<DnsStats, NetworkExit> {
     let mut stats = DnsStats::default();
     let total_attempts = DNS_ATTEMPTS_PER_TARGET.saturating_mul(targets.len() as u16);
 
@@ -835,7 +863,9 @@ async fn dns_probe(
             if accepted {
                 break;
             }
-            sleep_poll_interval().await;
+            if let Some(exit) = wait_poll_interval(uart, controller).await {
+                return Err(exit);
+            }
         }
         if accepted {
             break;
@@ -843,7 +873,7 @@ async fn dns_probe(
         write_dns_sample_prefix(uart, attempt, transaction_id, target);
         uart.write(b" status=timeout\r\n");
     }
-    stats
+    Ok(stats)
 }
 
 fn write_dns_sample_prefix(uart: &Uart0, attempt: u16, transaction_id: u16, target: Ipv4Address) {
@@ -873,6 +903,34 @@ fn now() -> Instant {
     Instant::from_millis(monotonic_ms().min(i64::MAX as u64) as i64)
 }
 
-async fn sleep_poll_interval() {
-    Timer::after(EmbassyDuration::from_millis(POLL_INTERVAL_MS)).await;
+async fn wait_poll_interval(uart: &Uart0, controller: &mut WifiController) -> Option<NetworkExit> {
+    match embassy_time::with_timeout(
+        EmbassyDuration::from_millis(POLL_INTERVAL_MS),
+        controller.next_event(),
+    )
+    .await
+    {
+        Err(_) => None,
+        Ok(WifiEvent::Disconnected { reason }) => {
+            uart.write(b"A4_RADIO_EVENT kind=disconnected reason=0x");
+            uart.write(&hex8(u32::from(reason)));
+            uart.write(b"\r\n");
+            Some(NetworkExit::Disconnected { reason })
+        }
+        Ok(WifiEvent::Failed(_)) => {
+            uart.write(b"A4_RADIO_EVENT kind=failed phase=network-runner\r\n");
+            Some(NetworkExit::BackendFailed)
+        }
+        Ok(event) => {
+            uart.write(b"RFDBG_A4_EVENT_IGNORED phase=network-runner kind=");
+            match event {
+                WifiEvent::Initialized => uart.write(b"initialized"),
+                WifiEvent::ScanCompleted { .. } => uart.write(b"scan-completed"),
+                WifiEvent::Connected(_) => uart.write(b"connected"),
+                WifiEvent::Disconnected { .. } | WifiEvent::Failed(_) => unreachable!(),
+            }
+            uart.write(b"\r\n");
+            None
+        }
+    }
 }

@@ -259,75 +259,99 @@ async fn connectivity(
         .iter()
         .find(|result| result.ssid.as_bytes() == TEST_SSID)
         .expect("scan result checked above");
-    let Some(passphrase) = Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
-        uart.write(b"RF5B_CONNECT_ERR:invalid_credentials\r\n");
-        halt()
-    };
-    #[cfg(feature = "wpa2")]
-    let station = StationConfig::wpa2_personal(result, passphrase, CONNECT_OPERATION_TIMEOUT);
-    #[cfg(feature = "wpa3")]
-    let station =
-        StationConfig::wpa3_personal(result, passphrase, SaePwe::Both, CONNECT_OPERATION_TIMEOUT);
-    let Some(station) = station else {
-        uart.write(b"RF5B_CONNECT_ERR:security_mismatch\r\n");
-        halt()
-    };
+    let mut reconnects = 0_u32;
+    loop {
+        let Some(passphrase) = Passphrase::try_from_ascii(TEST_PASSPHRASE) else {
+            uart.write(b"RF5B_CONNECT_ERR:invalid_credentials\r\n");
+            halt()
+        };
+        #[cfg(feature = "wpa2")]
+        let station = StationConfig::wpa2_personal(result, passphrase, CONNECT_OPERATION_TIMEOUT);
+        #[cfg(feature = "wpa3")]
+        let station = StationConfig::wpa3_personal(
+            result,
+            passphrase,
+            SaePwe::Both,
+            CONNECT_OPERATION_TIMEOUT,
+        );
+        let Some(station) = station else {
+            uart.write(b"RF5B_CONNECT_ERR:security_mismatch\r\n");
+            halt()
+        };
 
-    uart.write(b"RF5B_CONNECT_BEGIN\r\n");
-    let connect_started = monotonic_ms();
-    match with_timeout(CONNECT_WAIT_DEADLINE, controller.connect(station)).await {
-        Ok(Ok(_)) => {}
-        Ok(Err(error)) => {
-            write_controller_error(uart, b"RF5B_CONNECT_ERR:", error);
-            write_a5b_evidence(uart, controller, device);
-            halt()
-        }
-        Err(_) => {
-            uart.write(b"RF5B_CONNECT_ERR:outer_timeout\r\n");
-            halt()
-        }
-    }
-    uart.write(b"RFDBG_A5B_CONNECT_OK elapsed_ms=0x");
-    uart.write(&hex8(
-        monotonic_ms()
-            .wrapping_sub(connect_started)
-            .min(u32::MAX as u64) as u32,
-    ));
-    uart.write(b"\r\n");
-    #[cfg(feature = "wpa2")]
-    uart.write(b"W2D_WPA2_CONNECT_OK\r\n");
-    #[cfg(feature = "wpa3")]
-    {
-        uart.write(b"W2E_WPA3_CONNECT_OK pmf=required\r\n");
-        match result.security {
-            Security::Wpa3Personal => uart.write(b"W2E_AP_SECURITY mode=pure-wpa3\r\n"),
-            Security::Wpa2Wpa3PersonalTransition => {
-                uart.write(b"W2E_AP_SECURITY mode=transition\r\n");
+        uart.write(b"RF5B_CONNECT_BEGIN reconnect=0x");
+        uart.write(&hex8(reconnects));
+        uart.write(b"\r\n");
+        let connect_started = monotonic_ms();
+        match with_timeout(CONNECT_WAIT_DEADLINE, controller.connect(station)).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => {
+                write_controller_error(uart, b"RF5B_CONNECT_ERR:", error);
+                write_a5b_evidence(uart, controller, device);
+                halt()
             }
-            _ => {}
+            Err(_) => {
+                uart.write(b"RF5B_CONNECT_ERR:outer_timeout\r\n");
+                halt()
+            }
         }
+        uart.write(b"RFDBG_A5B_CONNECT_OK elapsed_ms=0x");
+        uart.write(&hex8(
+            monotonic_ms()
+                .wrapping_sub(connect_started)
+                .min(u32::MAX as u64) as u32,
+        ));
+        uart.write(b" reconnect=0x");
+        uart.write(&hex8(reconnects));
+        uart.write(b"\r\n");
+        #[cfg(feature = "wpa2")]
+        uart.write(b"W2D_WPA2_CONNECT_OK\r\n");
+        #[cfg(feature = "wpa3")]
+        {
+            uart.write(b"W2E_WPA3_CONNECT_OK pmf=required\r\n");
+            match result.security {
+                Security::Wpa3Personal => uart.write(b"W2E_AP_SECURITY mode=pure-wpa3\r\n"),
+                Security::Wpa2Wpa3PersonalTransition => {
+                    uart.write(b"W2E_AP_SECURITY mode=transition\r\n");
+                }
+                _ => {}
+            }
+        }
+        expect_event(uart, controller, ExpectedEvent::Connected).await;
+        #[cfg(feature = "diagnostic-disable-sta-pm")]
+        match hisi_rf::ws63::disable_station_power_save_for_diagnostics() {
+            Ok(()) => uart.write(b"RFDBG_STA_PM_DIAG mode=off status=ok\r\n"),
+            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::StationVapUnavailable) => {
+                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vap-unavailable\r\n");
+                halt()
+            }
+            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::Vendor(status)) => {
+                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vendor-error code=0x");
+                uart.write(&hex8(status));
+                uart.write(b"\r\n");
+                halt()
+            }
+            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::UnsupportedTarget) => {
+                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=unsupported-target\r\n");
+                halt()
+            }
+        }
+        write_a5b_evidence(uart, controller, device);
+        match network_runner::run(uart, controller, device).await {
+            network_runner::NetworkExit::Disconnected { reason } => {
+                uart.write(b"A4_RECONNECT reason=disconnected code=0x");
+                uart.write(&hex8(u32::from(reason)));
+                uart.write(b"\r\n");
+            }
+            network_runner::NetworkExit::BackendFailed => {
+                uart.write(b"A4_NET_ERR:backend-failed\r\n");
+                write_a5b_evidence(uart, controller, device);
+                halt()
+            }
+        }
+        reconnects = reconnects.saturating_add(1);
+        Timer::after(Duration::from_millis(250)).await;
     }
-    expect_event(uart, controller, ExpectedEvent::Connected).await;
-    #[cfg(feature = "diagnostic-disable-sta-pm")]
-    match hisi_rf::ws63::disable_station_power_save_for_diagnostics() {
-        Ok(()) => uart.write(b"RFDBG_STA_PM_DIAG mode=off status=ok\r\n"),
-        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::StationVapUnavailable) => {
-            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vap-unavailable\r\n");
-            halt()
-        }
-        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::Vendor(status)) => {
-            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vendor-error code=0x");
-            uart.write(&hex8(status));
-            uart.write(b"\r\n");
-            halt()
-        }
-        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::UnsupportedTarget) => {
-            uart.write(b"RFDBG_STA_PM_DIAG mode=off status=unsupported-target\r\n");
-            halt()
-        }
-    }
-    write_a5b_evidence(uart, controller, device);
-    network_runner::run(uart, controller, device).await
 }
 
 enum ExpectedEvent {
