@@ -293,6 +293,14 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
     uart.write(b" tx_ipv4=");
     uart.write(&crate::hex8(l2.tx_ipv4));
 
+    let rx_queue = hisi_rf::ws63::netif_smoltcp::rx_queue_diagnostics();
+    uart.write(b" rx_pending=");
+    uart.write(&crate::hex8(rx_queue.pending as u32));
+    uart.write(b" rx_high_water=");
+    uart.write(&crate::hex8(rx_queue.high_watermark as u32));
+    uart.write(b" rx_dropped=");
+    uart.write(&crate::hex8(rx_queue.dropped));
+
     let mut frame = [0_u8; 64];
     let length = hisi_rf::ws63::netif_smoltcp::last_tx(&mut frame);
     uart.write(b" last_len=");
