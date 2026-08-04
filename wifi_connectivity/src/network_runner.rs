@@ -348,6 +348,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
 
     keep_polling(
         uart,
+        controller,
         &mut interface,
         device,
         &mut sockets,
@@ -360,6 +361,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
 
 async fn keep_polling(
     uart: &Uart0,
+    controller: &WifiController,
     interface: &mut Interface,
     device: &mut WifiDevice,
     sockets: &mut SocketSet<'_>,
@@ -371,7 +373,11 @@ async fn keep_polling(
     let mut renew_reported = false;
     let mut dhcp_restart_at = None;
     loop {
+        let had_lease = lease.is_some();
         poll_network(uart, interface, device, sockets, dhcp_handle, lease);
+        if had_lease && lease.is_none() {
+            write_lease_loss_diagnostics(uart, controller, device, dhcp_baseline);
+        }
         let current = monotonic_ms();
         if lease.is_some() {
             dhcp_restart_at = None;
@@ -408,6 +414,46 @@ async fn keep_polling(
         }
         sleep_poll_interval().await;
     }
+}
+
+fn write_lease_loss_diagnostics(
+    uart: &Uart0,
+    controller: &WifiController,
+    device: &WifiDevice,
+    dhcp_baseline: DhcpDiagnostics,
+) {
+    let diagnostics = hisi_rf::ws63::diagnostics(controller, device);
+    let dhcp = diagnostics.dhcp;
+    let data_path = diagnostics.data_path;
+    uart.write(b"RFDBG_A4_DHCP_LEASE_LOSS dhcp_tx_delta=0x");
+    uart.write(&hex8(
+        dhcp.client_packets
+            .saturating_sub(dhcp_baseline.client_packets),
+    ));
+    uart.write(b" dhcp_rx_delta=0x");
+    uart.write(&hex8(
+        dhcp.server_packets
+            .saturating_sub(dhcp_baseline.server_packets),
+    ));
+    uart.write(b" dmac_rx=0x");
+    uart.write(&hex8(data_path.dmac_rx_prepares));
+    uart.write(b" hmac_event=0x");
+    uart.write(&hex8(data_path.hmac_rx_data_event_adapt_calls));
+    uart.write(b" hmac_msg=0x");
+    uart.write(&hex8(data_path.hmac_rx_process_data_msg_calls));
+    uart.write(b" hmac_data=0x");
+    uart.write(&hex8(data_path.hmac_rx_data_calls));
+    uart.write(b" vendor_rx=0x");
+    uart.write(&hex8(data_path.vendor_rx_frames));
+    uart.write(b" ccmp_replay=0x");
+    uart.write(&hex8(data_path.mac_ccmp_replay_failures));
+    uart.write(b" ccmp_mic=0x");
+    uart.write(&hex8(data_path.mac_ccmp_mic_failures));
+    uart.write(b" key_search_fail=0x");
+    uart.write(&hex8(data_path.mac_key_search_failures));
+    uart.write(b" irq45=0x");
+    uart.write(&hex8(data_path.wlmac_irqs));
+    uart.write(b"\r\n");
 }
 
 fn poll_network(

@@ -18,7 +18,7 @@ const BROADCAST_ADDRESS: Ipv4Address = Ipv4Address::new(255, 255, 255, 255);
 const DHCP_SERVER_PORT: u16 = 67;
 const DHCP_CLIENT_PORT: u16 = 68;
 const UDP_ECHO_PORT: u16 = 9;
-const DHCP_LEASE_SECONDS: u32 = 3_600;
+const DHCP_LEASE_SECONDS: u32 = 20;
 
 type Uart0<'d> = Uart<'d, hisi_hal::peripherals::Uart0<'d>>;
 
@@ -28,6 +28,8 @@ struct DhcpRequest {
     transaction_id: u32,
     secs: u16,
     client_hardware_address: EthernetAddress,
+    client_ip: Ipv4Address,
+    broadcast: bool,
 }
 
 #[derive(Default)]
@@ -35,7 +37,10 @@ struct NetworkDiagnostics {
     dhcp_discover: u32,
     dhcp_request: u32,
     dhcp_reply: u32,
+    dhcp_reply_broadcast: u32,
+    dhcp_reply_unicast: u32,
     dhcp_invalid: u32,
+    dhcp_last_transaction_id: u32,
     echo_rx: u32,
     echo_tx: u32,
 }
@@ -157,13 +162,24 @@ fn service_dhcp(
         diagnostics.dhcp_invalid = diagnostics.dhcp_invalid.saturating_add(1);
         return;
     };
-    let endpoint = IpEndpoint::new(IpAddress::Ipv4(BROADCAST_ADDRESS), DHCP_CLIENT_PORT);
+    let reply_address = if request.broadcast || request.client_ip == Ipv4Address::UNSPECIFIED {
+        BROADCAST_ADDRESS
+    } else {
+        request.client_ip
+    };
+    let endpoint = IpEndpoint::new(IpAddress::Ipv4(reply_address), DHCP_CLIENT_PORT);
     if sockets
         .get_mut::<udp::Socket>(handle)
         .send_slice(&payload[..length], endpoint)
         .is_ok()
     {
         diagnostics.dhcp_reply = diagnostics.dhcp_reply.saturating_add(1);
+        if reply_address == BROADCAST_ADDRESS {
+            diagnostics.dhcp_reply_broadcast = diagnostics.dhcp_reply_broadcast.saturating_add(1);
+        } else {
+            diagnostics.dhcp_reply_unicast = diagnostics.dhcp_reply_unicast.saturating_add(1);
+        }
+        diagnostics.dhcp_last_transaction_id = request.transaction_id;
     }
 }
 
@@ -175,6 +191,8 @@ fn parse_dhcp_request(payload: &[u8]) -> Option<DhcpRequest> {
         transaction_id: repr.transaction_id,
         secs: repr.secs,
         client_hardware_address: repr.client_hardware_address,
+        client_ip: repr.client_ip,
+        broadcast: repr.broadcast,
     })
 }
 
@@ -197,7 +215,7 @@ fn emit_dhcp_reply(
         router: None,
         subnet_mask: Some(Ipv4Address::new(255, 255, 255, 0)),
         relay_agent_ip: Ipv4Address::UNSPECIFIED,
-        broadcast: true,
+        broadcast: request.broadcast || request.client_ip == Ipv4Address::UNSPECIFIED,
         requested_ip: None,
         client_identifier: None,
         server_identifier: Some(SERVER_ADDRESS),
@@ -247,8 +265,14 @@ fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics)
     uart.write(&crate::hex8(diagnostics.dhcp_request));
     uart.write(b" dhcp_reply=");
     uart.write(&crate::hex8(diagnostics.dhcp_reply));
+    uart.write(b" dhcp_reply_broadcast=");
+    uart.write(&crate::hex8(diagnostics.dhcp_reply_broadcast));
+    uart.write(b" dhcp_reply_unicast=");
+    uart.write(&crate::hex8(diagnostics.dhcp_reply_unicast));
     uart.write(b" dhcp_invalid=");
     uart.write(&crate::hex8(diagnostics.dhcp_invalid));
+    uart.write(b" dhcp_last_xid=");
+    uart.write(&crate::hex8(diagnostics.dhcp_last_transaction_id));
     uart.write(b" echo_rx=");
     uart.write(&crate::hex8(diagnostics.echo_rx));
     uart.write(b" echo_tx=");
