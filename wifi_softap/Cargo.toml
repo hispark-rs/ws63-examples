@@ -9,6 +9,7 @@ license = "MIT"
 default = ["wpa2"]
 wpa2 = ["hisi-rf/profile-wifi-wpa2-softap"]
 wpa3 = ["hisi-rf/profile-wifi-wpa3-softap"]
+data-path-diagnostics = ["hisi-rf/ws63-data-path-diagnostics"]
 
 [dependencies]
 hisi-hal = { version = "0.7.0-alpha.6", features = ["chip-ws63", "unstable"] }

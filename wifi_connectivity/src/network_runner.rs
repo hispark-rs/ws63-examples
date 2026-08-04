@@ -239,6 +239,8 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     let dhcp = diagnostics.dhcp;
     let l2 = diagnostics.l2_protocol;
     let data_path = diagnostics.data_path;
+    let mut last_tx = [0_u8; 64];
+    let last_tx_len = device.last_transmitted_frame(&mut last_tx);
     uart.write(b"RF5C_CONNECTIVITY_SUMMARY arp_request=0x");
     uart.write(&hex8(l2.tx_arp_requests));
     uart.write(b" arp_reply=0x");
@@ -341,6 +343,23 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.wlphy_irqs));
     uart.write(b" irq45=0x");
     uart.write(&hex8(data_path.wlmac_irqs));
+    uart.write(b" last_tx_len=0x");
+    uart.write(&hex8(last_tx_len.min(u32::MAX as usize) as u32));
+    if last_tx_len >= 14 {
+        uart.write(b" last_tx_dst_hi=0x");
+        uart.write(&hex8(u32::from_be_bytes([
+            last_tx[0], last_tx[1], last_tx[2], last_tx[3],
+        ])));
+        uart.write(b" last_tx_dst_lo=0x");
+        uart.write(&hex8(u32::from(u16::from_be_bytes([
+            last_tx[4], last_tx[5],
+        ]))));
+        uart.write(b" last_tx_ethertype=0x");
+        uart.write(&hex8(u32::from(u16::from_be_bytes([
+            last_tx[12],
+            last_tx[13],
+        ]))));
+    }
     uart.write(b"\r\n");
     super::write_rtos_task_diagnostics(uart);
     uart.write(b"A4_NET_RUNNER_STEADY lease=managed neighbor_cache=managed\r\n");

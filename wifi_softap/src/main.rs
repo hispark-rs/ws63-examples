@@ -139,6 +139,35 @@ fn write_diagnostics(
     uart.write(&hex8(diagnostics.key_installs));
     uart.write(b" key_status=");
     uart.write(&hex8(diagnostics.last_key_status as u32));
+    #[cfg(feature = "data-path-diagnostics")]
+    {
+        uart.write(b" data_tx=");
+        uart.write(&hex8(diagnostics.data_tx_frames));
+        uart.write(b" data_tx_failed=");
+        uart.write(&hex8(diagnostics.data_tx_failed));
+        uart.write(b" data_vendor_tx=");
+        uart.write(&hex8(diagnostics.data_vendor_tx_frames));
+        uart.write(b" data_tx_complete=");
+        uart.write(&hex8(diagnostics.data_tx_completions));
+        uart.write(b" data_dmac_rx=");
+        uart.write(&hex8(diagnostics.data_dmac_rx_prepares));
+        uart.write(b" data_hmac_event=");
+        uart.write(&hex8(diagnostics.data_hmac_rx_event_calls));
+        uart.write(b" data_hmac_msg=");
+        uart.write(&hex8(diagnostics.data_hmac_rx_msg_calls));
+        uart.write(b" data_hmac_rx=");
+        uart.write(&hex8(diagnostics.data_hmac_rx_calls));
+        uart.write(b" data_vendor_rx=");
+        uart.write(&hex8(diagnostics.data_vendor_rx_frames));
+        uart.write(b" ccmp_replay=");
+        uart.write(&hex8(diagnostics.mac_ccmp_replay_failures));
+        uart.write(b" ccmp_mic=");
+        uart.write(&hex8(diagnostics.mac_ccmp_mic_failures));
+        uart.write(b" key_search_fail=");
+        uart.write(&hex8(diagnostics.mac_key_search_failures));
+        uart.write(b" irq45=");
+        uart.write(&hex8(diagnostics.wlmac_irqs));
+    }
     uart.write(b"\r\n");
 }
 
