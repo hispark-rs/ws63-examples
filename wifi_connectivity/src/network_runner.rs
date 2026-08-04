@@ -265,18 +265,6 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
     uart.write(&hex8(data_path.hmac_rx_process_data_msg_calls));
     uart.write(b" hmac_data=0x");
     uart.write(&hex8(data_path.hmac_rx_data_calls));
-    uart.write(b" rx_status_ok=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[0]));
-    uart.write(b" rx_status_dup=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[1]));
-    uart.write(b" rx_status_key=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[2]));
-    uart.write(b" rx_status_mic=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[3]));
-    uart.write(b" rx_status_replay=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[4]));
-    uart.write(b" rx_status_other=0x");
-    uart.write(&hex8(data_path.dmac_rx_status_counts[5]));
     uart.write(b" vendor_rx=0x");
     uart.write(&hex8(data_path.vendor_rx_frames));
     uart.write(b" rx=0x");
