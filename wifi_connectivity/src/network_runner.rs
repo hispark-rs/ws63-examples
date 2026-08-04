@@ -159,6 +159,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         halt()
     };
     let dhcp_baseline = device.dhcp_diagnostics();
+    let tx_completion_baseline = device.data_path_diagnostics().tx_completion_status;
 
     let local_target = active_lease.router.unwrap_or(active_lease.server);
     let local_echo = local_neighbor_probe(
@@ -189,6 +190,22 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         DnsStats::default()
     };
     let l2_gate = device.l2_protocol_diagnostics();
+    let tx_completion_after_probe = device.data_path_diagnostics().tx_completion_status;
+
+    uart.write(b"RFDBG_A5B_LOCAL_TX_STATUS");
+    for status in 0..tx_completion_baseline.len() {
+        uart.write(b" s");
+        uart.write(&[if status < 10 {
+            b'0' + status as u8
+        } else {
+            b'a' + (status - 10) as u8
+        }]);
+        uart.write(b"=0x");
+        uart.write(&hex8(
+            tx_completion_after_probe[status].wrapping_sub(tx_completion_baseline[status]),
+        ));
+    }
+    uart.write(b"\r\n");
 
     if l2_gate.rx_arp_replies != 0 && local_echo {
         uart.write(b"RF5A_ARP_OK evidence=l2-arp-reply\r\n");
