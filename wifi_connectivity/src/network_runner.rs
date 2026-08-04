@@ -159,7 +159,7 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         halt()
     };
     let dhcp_baseline = device.dhcp_diagnostics();
-    let tx_completion_baseline = device.data_path_diagnostics().tx_completion_status;
+    let data_path_baseline = device.data_path_diagnostics();
 
     let local_target = active_lease.router.unwrap_or(active_lease.server);
     let local_echo = local_neighbor_probe(
@@ -190,10 +190,10 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         DnsStats::default()
     };
     let l2_gate = device.l2_protocol_diagnostics();
-    let tx_completion_after_probe = device.data_path_diagnostics().tx_completion_status;
+    let data_path_after_probe = device.data_path_diagnostics();
 
     uart.write(b"RFDBG_A5B_LOCAL_TX_STATUS");
-    for status in 0..tx_completion_baseline.len() {
+    for status in 0..data_path_baseline.tx_completion_status.len() {
         uart.write(b" s");
         uart.write(&[if status < 10 {
             b'0' + status as u8
@@ -202,7 +202,23 @@ pub(super) async fn run(uart: &Uart0, controller: &WifiController, device: &mut 
         }]);
         uart.write(b"=0x");
         uart.write(&hex8(
-            tx_completion_after_probe[status].wrapping_sub(tx_completion_baseline[status]),
+            data_path_after_probe.tx_completion_status[status]
+                .wrapping_sub(data_path_baseline.tx_completion_status[status]),
+        ));
+    }
+    uart.write(b"\r\n");
+    uart.write(b"RFDBG_A5B_LOCAL_DATA_TX_STATUS");
+    for status in 0..data_path_baseline.data_tx_completion_status.len() {
+        uart.write(b" s");
+        uart.write(&[if status < 10 {
+            b'0' + status as u8
+        } else {
+            b'a' + (status - 10) as u8
+        }]);
+        uart.write(b"=0x");
+        uart.write(&hex8(
+            data_path_after_probe.data_tx_completion_status[status]
+                .wrapping_sub(data_path_baseline.data_tx_completion_status[status]),
         ));
     }
     uart.write(b"\r\n");
