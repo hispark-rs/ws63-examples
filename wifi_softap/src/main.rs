@@ -53,7 +53,7 @@ fn main() -> ! {
 
     let _timer = TimerAlarm0::new(p.TIMER);
     let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
-    let _runtime = hisi_rtos::start_with_port(
+    let runtime = hisi_rtos::start_with_port(
         hisi_rtos::PortedConfig {
             radio_task_policy: hisi_rtos::RunPolicy::Cooperative,
             max_scheduler_lock_duration: NonZeroU32::new(5_000).unwrap(),
@@ -73,6 +73,15 @@ fn main() -> ! {
         },
     )
     .expect("start ported runtime");
+    let main_task = runtime.current_task().expect("adopted SoftAP main task");
+    runtime
+        .set_task_run_policy(
+            main_task,
+            hisi_rtos::RunPolicy::Preemptive {
+                time_slice: NonZeroU32::new(5).unwrap(),
+            },
+        )
+        .expect("configure SoftAP application thread");
     unsafe { interrupt::enable_global() };
 
     #[cfg(feature = "wpa2")]
