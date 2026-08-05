@@ -323,6 +323,14 @@ pub(crate) fn write_rtos_task_diagnostics(uart: &Uart<'_, hisi_hal::peripherals:
         uart.write(&hex8(task.task as u32));
         uart.write(b" state=");
         uart.write(task_state_name(task.state));
+        uart.write(b" ready_queued=");
+        uart.write(if task.ready_queued { b"1" } else { b"0" });
+        uart.write(b" pending_target=");
+        uart.write(if task.pending_switch_target {
+            b"1"
+        } else {
+            b"0"
+        });
         uart.write(b" entry=0x");
         uart.write(&hex8(task.entry as u32));
         uart.write(b" base_prio=0x");
