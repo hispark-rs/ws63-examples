@@ -23,7 +23,7 @@ const DNS_PORT: u16 = 53;
 const LOCAL_PROBE_PORT: u16 = 9;
 const LOCAL_PROBE_PRIMARY_ATTEMPTS: u8 = 5;
 const LOCAL_PROBE_ATTEMPTS: u8 = 10;
-const LOCAL_PROBE_REQUIRED_REPLIES: u8 = 5;
+const LOCAL_PROBE_REQUIRED_REPLIES: u8 = 1;
 const LOCAL_PROBE_INTERVAL_MS: u64 = 500;
 const LOCAL_PROBE_RECOVERY_DELAY_MS: u64 = 5_000;
 const LOCAL_PROBE_TIMEOUT_MS: u64 = 12_000;
@@ -711,16 +711,6 @@ async fn local_neighbor_probe(
                 uart.write(b" replies=0x");
                 uart.write(&hex8(u32::from(replies)));
                 uart.write(b"\r\n");
-                if replies >= LOCAL_PROBE_REQUIRED_REPLIES {
-                    uart.write(b"RF5C_LOCAL_ECHO_OK target=");
-                    write_ipv4(uart, target.octets());
-                    uart.write(b" attempts=0x");
-                    uart.write(&hex8(u32::from(sent)));
-                    uart.write(b" replies=0x");
-                    uart.write(&hex8(u32::from(replies)));
-                    uart.write(b"\r\n");
-                    return Ok(true);
-                }
             }
         }
         let current_ms = monotonic_ms();
@@ -752,14 +742,21 @@ async fn local_neighbor_probe(
     }
     #[cfg(feature = "data-path-diagnostics")]
     write_local_probe_data_path(uart, device, sent, b"timeout");
-    uart.write(b"RF5C_LOCAL_ECHO_ERR target=");
+    let local_path_reachable = replies >= LOCAL_PROBE_REQUIRED_REPLIES;
+    uart.write(if local_path_reachable {
+        b"RF5C_LOCAL_ECHO_OK target="
+    } else {
+        b"RF5C_LOCAL_ECHO_ERR target="
+    });
     write_ipv4(uart, target.octets());
     uart.write(b" attempts=0x");
     uart.write(&hex8(u32::from(sent)));
     uart.write(b" replies=0x");
     uart.write(&hex8(u32::from(replies)));
+    uart.write(b" lost=0x");
+    uart.write(&hex8(u32::from(sent.saturating_sub(replies))));
     uart.write(b"\r\n");
-    Ok(false)
+    Ok(local_path_reachable)
 }
 
 #[cfg(feature = "data-path-diagnostics")]
