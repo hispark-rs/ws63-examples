@@ -249,28 +249,10 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_dmac_tx_mac_queue_status[0]));
         uart.write(b" dmac_mac_ext_q_status=");
         uart.write(&hex8(diagnostics.data_dmac_tx_mac_queue_status[1]));
-        uart.write(b" dmac_completion_sw_queues=");
-        for queue in diagnostics.data_dmac_tx_completion_queues.0 {
-            uart.write(&hex8(queue));
-            uart.write(b",");
-        }
-        uart.write(b" dmac_completion_hw_queues=");
-        for queue in diagnostics.data_dmac_tx_completion_queues.1 {
-            uart.write(&hex8(queue));
-            uart.write(b",");
-        }
-        uart.write(b" dmac_completion_mac_q_status=");
-        uart.write(&hex8(
-            diagnostics.data_dmac_tx_completion_mac_queue_status[0],
-        ));
-        uart.write(b" dmac_completion_mac_ext_q_status=");
-        uart.write(&hex8(
-            diagnostics.data_dmac_tx_completion_mac_queue_status[1],
-        ));
+        uart.write(b" dmac_queue_snapshot_stage=");
+        uart.write(&hex8(diagnostics.data_dmac_tx_queue_snapshot_metadata[0]));
         uart.write(b" dmac_schedule_hook=");
-        uart.write(&hex8(
-            diagnostics.data_dmac_tx_completion_mac_queue_status[2],
-        ));
+        uart.write(&hex8(diagnostics.data_dmac_tx_queue_snapshot_metadata[1]));
         uart.write(b" psm_found=");
         uart.write(&hex8(diagnostics.data_psm[0]));
         uart.write(b" psm_vap=");
