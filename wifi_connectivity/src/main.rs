@@ -699,7 +699,7 @@ fn write_scan_diagnostics(
     uart.write(&hex8(scan.queue_dropped));
     uart.write(b" native_start_ms=0x");
     uart.write(&hex8(scan.native_start_ms));
-    uart.write(b" native_done_ms=0x");
+    uart.write(b" native_observed_ms=0x");
     uart.write(&hex8(scan.native_done_ms));
     uart.write(b" driver_active=0x");
     uart.write(&hex8(u32::from(scan.driver_active)));
@@ -709,7 +709,7 @@ fn write_scan_diagnostics(
     uart.write(&hex8(scan.driver_results));
     uart.write(b" driver_status=0x");
     uart.write(&hex8(scan.driver_status));
-    uart.write(b" driver_done_ms=0x");
+    uart.write(b" driver_observed_ms=0x");
     uart.write(&hex8(scan.driver_done_ms));
     uart.write(b"\r\n");
 }
