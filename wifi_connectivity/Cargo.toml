@@ -29,7 +29,7 @@ hisi-riscv-rt = { version = "0.5.7", default-features = false, features = [
     "ws63-bgle-32k",
     "ws63-radio-main-stack-32k",
 ] }
-hisi-rtos = { version = "=0.1.0-alpha.23", features = ["chip-ws63", "embassy"] }
+hisi-rtos = { version = "=0.1.0-alpha.24", features = ["chip-ws63", "embassy"] }
 smoltcp = { version = "0.13", default-features = false, features = [
     "medium-ethernet",
     "proto-ipv4",

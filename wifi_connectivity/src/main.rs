@@ -517,6 +517,23 @@ fn write_a5b_evidence(uart: &Uart0, controller: &WifiController, device: &WifiDe
 }
 
 fn write_rtos_task_diagnostics(uart: &Uart0) {
+    let scheduler = hisi_rtos::diagnostics();
+    uart.write(b"RFDBG_A5B_SCHED ready_owner_err=0x");
+    uart.write(&hex8(u32::from(scheduler.ready_ownership_violations)));
+    uart.write(b" ready_dup=0x");
+    uart.write(&hex8(u32::from(
+        scheduler.ready_queue_duplicate_memberships,
+    )));
+    uart.write(b" ready_wrong_bucket=0x");
+    uart.write(&hex8(u32::from(scheduler.ready_queue_wrong_priorities)));
+    uart.write(b" ready_bad_link=0x");
+    uart.write(&hex8(u32::from(scheduler.ready_queue_invalid_links)));
+    uart.write(b" detached_prio_mut=0x");
+    uart.write(&hex8(scheduler.detached_pending_priority_mutations));
+    uart.write(b" detached_policy_mut=0x");
+    uart.write(&hex8(scheduler.detached_pending_policy_mutations));
+    uart.write(b"\r\n");
+
     let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 17];
     let count = hisi_rtos::task_diagnostics(&mut tasks);
     for task in &tasks[..count] {
@@ -530,6 +547,18 @@ fn write_rtos_task_diagnostics(uart: &Uart0) {
         uart.write(&hex8(u32::from(task.base_priority)));
         uart.write(b" prio=0x");
         uart.write(&hex8(u32::from(task.priority)));
+        uart.write(b" ready_queued=");
+        uart.write(if task.ready_queued { b"1" } else { b"0" });
+        uart.write(b" pending_target=");
+        uart.write(if task.pending_switch_target {
+            b"1"
+        } else {
+            b"0"
+        });
+        uart.write(b" ready_bucket=0x");
+        uart.write(&hex8(u32::from(task.ready_queue_bucket)));
+        uart.write(b" ready_memberships=0x");
+        uart.write(&hex8(u32::from(task.ready_queue_memberships)));
         uart.write(b" wait_sem=0x");
         uart.write(&hex8(task.waiting_sem as u32));
         uart.write(b" wake_at=0x");
