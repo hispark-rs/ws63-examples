@@ -7,7 +7,6 @@ fn main() {
         // Final-link-only diagnostic wrapping cannot propagate from a Cargo
         // dependency. Keep this opt-in HIL fixture aligned with the station
         // connectivity fixture; ordinary consumer builds do not enable it.
-        println!("cargo:rustc-link-arg=--wrap=hmac_bridge_vap_xmit_etc");
         println!("cargo:rustc-link-arg=--wrap=dmac_tx_complete_event_handler");
         println!("cargo:rustc-link-arg=--wrap=dmac_rx_prepare_data_patch");
         println!("cargo:rustc-link-arg=--wrap=hmac_rx_data_event_adapt");
