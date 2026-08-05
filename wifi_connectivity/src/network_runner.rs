@@ -28,7 +28,8 @@ const LOCAL_PROBE_INTERVAL_MS: u64 = 500;
 const LOCAL_PROBE_RECOVERY_DELAY_MS: u64 = 5_000;
 const LOCAL_PROBE_TIMEOUT_MS: u64 = 12_000;
 const DNS_TIMEOUT_MS: u64 = 1_500;
-const DNS_RX_BUFFER_BYTES: usize = 256;
+const UDP_RX_PACKET_CAPACITY: usize = LOCAL_PROBE_ATTEMPTS as usize;
+const DNS_RX_BUFFER_BYTES: usize = 128;
 const DNS_TX_BUFFER_BYTES: usize = 32;
 const PUBLIC_TARGETS: [Ipv4Address; 2] = [
     Ipv4Address::new(
@@ -99,7 +100,10 @@ pub(super) async fn run(
     dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(DHCP_SMOKE_MAX_LEASE_SECS)));
     let dhcp_handle = sockets.add(dhcp_socket);
 
-    let mut dns_rx_metadata = [udp::PacketMetadata::EMPTY; 1];
+    // Interface::poll can deliver a burst before the application gets a chance
+    // to drain this shared local-probe/DNS socket. Keep one slot per bounded
+    // local-probe attempt.
+    let mut dns_rx_metadata = [udp::PacketMetadata::EMPTY; UDP_RX_PACKET_CAPACITY];
     let mut dns_tx_metadata = [udp::PacketMetadata::EMPTY; 1];
     let mut dns_rx_storage = [0_u8; DNS_RX_BUFFER_BYTES];
     let mut dns_tx_storage = [0_u8; DNS_TX_BUFFER_BYTES];

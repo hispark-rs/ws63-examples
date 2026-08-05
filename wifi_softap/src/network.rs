@@ -89,7 +89,10 @@ pub fn run(
     dhcp.bind(DHCP_SERVER_PORT).expect("bind DHCP server");
     let dhcp_handle = sockets.add(dhcp);
 
-    let mut echo_rx_metadata = [udp::PacketMetadata::EMPTY; 2];
+    // A single interface poll can enqueue the complete bounded echo burst
+    // before service_echo runs. Keep enough packet slots so smoltcp does not
+    // silently discard later datagrams.
+    let mut echo_rx_metadata = [udp::PacketMetadata::EMPTY; 16];
     let mut echo_rx_data = [0_u8; 512];
     let mut echo_tx_metadata = [udp::PacketMetadata::EMPTY; 2];
     let mut echo_tx_data = [0_u8; 512];
