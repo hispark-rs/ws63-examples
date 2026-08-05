@@ -258,14 +258,6 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_dmac_tx_queue_snapshot_metadata[0]));
         uart.write(b" dmac_schedule_hook=");
         uart.write(&hex8(diagnostics.data_dmac_tx_queue_snapshot_metadata[1]));
-        uart.write(b" dmac_need_schedule_calls=");
-        uart.write(&hex8(diagnostics.data_dmac_tx_schedule[0]));
-        uart.write(b" dmac_need_schedule_true=");
-        uart.write(&hex8(diagnostics.data_dmac_tx_schedule[1]));
-        uart.write(b" dmac_schedule_calls=");
-        uart.write(&hex8(diagnostics.data_dmac_tx_schedule[2]));
-        uart.write(b" dmac_schedule_last_queue=");
-        uart.write(&hex8(diagnostics.data_dmac_tx_schedule[3]));
         uart.write(b" psm_found=");
         uart.write(&hex8(diagnostics.data_psm[0]));
         uart.write(b" psm_vap=");
