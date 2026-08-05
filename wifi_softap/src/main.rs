@@ -268,6 +268,62 @@ pub(crate) fn write_rtos_task_diagnostics(uart: &Uart<'_, hisi_hal::peripherals:
         ));
         uart.write(b"\r\n");
     }
+
+    write_osal_diagnostics(uart);
+}
+
+fn write_osal_diagnostics(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>) {
+    let mut waits = [hisi_rf::ws63::OsalWaitDiagnostic::default(); 16];
+    let wait_count = hisi_rf::ws63::osal_wait_diagnostics(&mut waits);
+    for wait in &waits[..wait_count] {
+        uart.write(b"RFDBG_SOFTAP_OSAL_WAIT wait=0x");
+        uart.write(&hex8(wait.wait as u32));
+        uart.write(b" sem=0x");
+        uart.write(&hex8(wait.semaphore as u32));
+        uart.write(b" pred=0x");
+        uart.write(&hex8(wait.predicate as u32));
+        uart.write(b" param=0x");
+        uart.write(&hex8(wait.parameter as u32));
+        uart.write(b" pred_now=0x");
+        uart.write(&hex8(wait.predicate_result as u32));
+        uart.write(b" blocks=0x");
+        uart.write(&hex8(wait.blocks));
+        uart.write(b" wakeups=0x");
+        uart.write(&hex8(wait.wakeups));
+        uart.write(b" ready=0x");
+        uart.write(&hex8(wait.ready_checks));
+        uart.write(b" wait_task=0x");
+        uart.write(&hex8(wait.last_wait_task as u32));
+        uart.write(b" wake_task=0x");
+        uart.write(&hex8(wait.last_wake_task as u32));
+        uart.write(b" wait_ra=0x");
+        uart.write(&hex8(wait.last_wait_caller as u32));
+        uart.write(b" wake_ra=0x");
+        uart.write(&hex8(wait.last_wake_caller as u32));
+        uart.write(b"\r\n");
+    }
+
+    let mut events = [hisi_rf::ws63::OsalEventDiagnostic::default(); 16];
+    let event_count = hisi_rf::ws63::osal_event_diagnostics(&mut events);
+    for event in &events[..event_count] {
+        uart.write(b"RFDBG_SOFTAP_OSAL_EVENT event=0x");
+        uart.write(&hex8(event.event as u32));
+        uart.write(b" bits=0x");
+        uart.write(&hex8(event.bits));
+        uart.write(b" reads=0x");
+        uart.write(&hex8(event.reads));
+        uart.write(b" writes=0x");
+        uart.write(&hex8(event.writes));
+        uart.write(b" matches=0x");
+        uart.write(&hex8(event.matches));
+        uart.write(b" read_mask=0x");
+        uart.write(&hex8(event.last_read_mask));
+        uart.write(b" write_mask=0x");
+        uart.write(&hex8(event.last_write_mask));
+        uart.write(b" mode=0x");
+        uart.write(&hex8(event.last_mode));
+        uart.write(b"\r\n");
+    }
 }
 
 const fn task_state_name(state: hisi_rtos::TaskState) -> &'static [u8] {
