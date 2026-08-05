@@ -226,6 +226,15 @@ fn write_diagnostics(
             uart.write(&hex8(status));
             uart.write(b",");
         }
+        uart.write(b" dmac_event_calls=");
+        uart.write(&hex8(diagnostics.data_dmac_tx_event.0));
+        uart.write(b" dmac_event_last=");
+        uart.write(&hex8(diagnostics.data_dmac_tx_event.1));
+        uart.write(b" dmac_event_status=");
+        for status in diagnostics.data_dmac_tx_event.2 {
+            uart.write(&hex8(status));
+            uart.write(b",");
+        }
         uart.write(b" psm_found=");
         uart.write(&hex8(diagnostics.data_psm[0]));
         uart.write(b" psm_vap=");

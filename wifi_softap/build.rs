@@ -16,5 +16,6 @@ fn main() {
         println!("cargo:rustc-link-arg=--wrap=hmac_tx_process_data");
         println!("cargo:rustc-link-arg=--wrap=hmac_tx_data_send");
         println!("cargo:rustc-link-arg=--wrap=frw_hmac_send_data");
+        println!("cargo:rustc-link-arg=--wrap=dmac_tx_process_data_event");
     }
 }
