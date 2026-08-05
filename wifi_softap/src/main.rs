@@ -47,9 +47,11 @@ fn main() -> ! {
     uart.write(b"\r\nRFDBG_SOFTAP_BEGIN\r\n");
 
     let installed = RADIO_STORAGE.install().expect("install SoftAP storage");
+    uart.write(b"RFDBG_SOFTAP_STORAGE_OK\r\n");
     let mut delay = Delay::new();
     let rf_ready = RfPower::new(p.CMU, p.CLDO_CRG).enable(p.EFUSE, &mut delay);
     let (_cldo_crg, efuse) = rf_ready.into_parts();
+    uart.write(b"RFDBG_SOFTAP_RF_POWER_OK\r\n");
 
     let _timer = TimerAlarm0::new(p.TIMER);
     let _software_interrupt = SoftwareInterrupt0::new(p.SYS_CTL1);
@@ -73,6 +75,7 @@ fn main() -> ! {
         },
     )
     .expect("start ported runtime");
+    uart.write(b"RFDBG_SOFTAP_RTOS_OK\r\n");
     let main_task = runtime.current_task().expect("adopted SoftAP main task");
     runtime
         .set_task_run_policy(
@@ -83,6 +86,7 @@ fn main() -> ! {
         )
         .expect("configure SoftAP application thread");
     unsafe { interrupt::enable_global() };
+    uart.write(b"RFDBG_SOFTAP_IRQ_OK\r\n");
 
     #[cfg(feature = "wpa2")]
     let resources = AccessPointResources::new(efuse, p.KM, p.SPACC, p.TRNG, installed);
@@ -93,6 +97,7 @@ fn main() -> ! {
         AccessPointConfig::wpa2_personal(config::SSID, config::PASSPHRASE, config::CHANNEL);
     #[cfg(feature = "wpa3")]
     let config = AccessPointConfig::wpa3_sae(config::SSID, config::PASSPHRASE, config::CHANNEL);
+    uart.write(b"RFDBG_SOFTAP_INIT_BEGIN\r\n");
     let mut access_point =
         hisi_rf::ws63::init_access_point(config, resources).expect("start native SoftAP");
     uart.write(b"RFDBG_SOFTAP_READY\r\n");
