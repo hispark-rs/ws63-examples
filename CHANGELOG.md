@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Added SoftAP scheduler diagnostics for priority/policy mutations of a
+  detached pending switch target, so HIL can distinguish a constructible RTOS
+  ownership defect from a trigger observed on silicon.
 - Updated both Wi-Fi fixtures to `hisi-rf 0.1.0-alpha.82` and added matching
   repository-owned WPA3-SAE AP/STA profiles. The WPA3 AP consumes the typed
   PKE resource and emits secret-free P-256 request/failure counters for HIL.

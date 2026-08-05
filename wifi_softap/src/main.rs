@@ -314,6 +314,10 @@ pub(crate) fn write_rtos_task_diagnostics(uart: &Uart<'_, hisi_hal::peripherals:
     uart.write(&hex8(u32::from(scheduler.current_lock_depth)));
     uart.write(b" lock_overrun=0x");
     uart.write(&hex8(scheduler.scheduler_lock_overruns));
+    uart.write(b" detached_prio_mut=0x");
+    uart.write(&hex8(scheduler.detached_pending_priority_mutations));
+    uart.write(b" detached_policy_mut=0x");
+    uart.write(&hex8(scheduler.detached_pending_policy_mutations));
     uart.write(b"\r\n");
 
     let mut tasks = [hisi_rtos::TaskDiagnostic::default(); 17];
