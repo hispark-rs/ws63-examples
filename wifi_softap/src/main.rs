@@ -195,6 +195,16 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_hmac_rx_calls));
         uart.write(b" data_vendor_rx=");
         uart.write(&hex8(diagnostics.data_vendor_rx_frames));
+        uart.write(b" psm_found=");
+        uart.write(&hex8(diagnostics.data_psm[0]));
+        uart.write(b" psm_vap=");
+        uart.write(&hex8(diagnostics.data_psm[1]));
+        uart.write(b" psm_mode=");
+        uart.write(&hex8(diagnostics.data_psm[2]));
+        uart.write(b" psm_empty=");
+        uart.write(&hex8(diagnostics.data_psm[3]));
+        uart.write(b" psm_tid_mpdu=");
+        uart.write(&hex8(diagnostics.data_psm[4]));
         uart.write(b" ccmp_replay=");
         uart.write(&hex8(diagnostics.mac_ccmp_replay_failures));
         uart.write(b" ccmp_mic=");
