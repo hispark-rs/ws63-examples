@@ -186,6 +186,24 @@ async fn connectivity(
     uart.write(b"\r\n");
     uart.write(b"RF2_INIT_OK ifname=hisi-rf\r\n");
     expect_event(uart, controller, ExpectedEvent::Initialized).await;
+    #[cfg(feature = "diagnostic-disable-sta-pm")]
+    match hisi_rf::ws63::disable_station_power_save_for_diagnostics() {
+        Ok(()) => uart.write(b"RFDBG_STA_PM_DIAG phase=pre-association mode=off status=ok\r\n"),
+        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::Vendor(status)) => {
+            uart.write(
+                b"RFDBG_STA_PM_DIAG phase=pre-association mode=off status=vendor-error code=0x",
+            );
+            uart.write(&hex8(status as u32));
+            uart.write(b"\r\n");
+            halt()
+        }
+        Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::UnsupportedTarget) => {
+            uart.write(
+                b"RFDBG_STA_PM_DIAG phase=pre-association mode=off status=unsupported-target\r\n",
+            );
+            halt()
+        }
+    }
 
     let mut scan_results = [ScanResult::empty(); SCAN_RESULT_DEPTH];
     let mut retries = 0_u8;
@@ -318,24 +336,6 @@ async fn connectivity(
             }
         }
         expect_event(uart, controller, ExpectedEvent::Connected).await;
-        #[cfg(feature = "diagnostic-disable-sta-pm")]
-        match hisi_rf::ws63::disable_station_power_save_for_diagnostics() {
-            Ok(()) => uart.write(b"RFDBG_STA_PM_DIAG mode=off status=ok\r\n"),
-            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::StationVapUnavailable) => {
-                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vap-unavailable\r\n");
-                halt()
-            }
-            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::Vendor(status)) => {
-                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=vendor-error code=0x");
-                uart.write(&hex8(status));
-                uart.write(b"\r\n");
-                halt()
-            }
-            Err(hisi_rf::ws63::StationPowerSaveDiagnosticError::UnsupportedTarget) => {
-                uart.write(b"RFDBG_STA_PM_DIAG mode=off status=unsupported-target\r\n");
-                halt()
-            }
-        }
         write_a5b_evidence(uart, controller, device);
         match network_runner::run(uart, controller, device).await {
             network_runner::NetworkExit::Disconnected { reason } => {
