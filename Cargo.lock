@@ -775,7 +775,7 @@ checksum = "5fc2f9dded6797c89610a734aab74bdb96c9a44399fc38e40bb61ee337a8559d"
 
 [[package]]
 name = "hisi-rtos"
-version = "0.1.0-alpha.22"
+version = "0.1.0-alpha.23"
 dependencies = [
  "critical-section",
  "embassy-time-driver",

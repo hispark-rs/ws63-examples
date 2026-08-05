@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   example now selects the complete bounded runner through its named profile,
   without opting into implementation features, and uses the facade's neutral
   `RadioParts` / `RadioRunner` lifecycle names.
+- Updated both Wi-Fi fixtures to `hisi-rtos 0.1.0-alpha.23`, so the release
+  closure includes the verified switch-target ownership and linearized
+  switch-away fixes used by the dual-board HIL path.
 
 - Added SoftAP scheduler diagnostics for priority/policy mutations of a
   detached pending switch target, so HIL can distinguish a constructible RTOS
