@@ -550,7 +550,7 @@ fn write_rtos_task_diagnostics(uart: &Uart0) {
     }
 }
 
-fn write_osal_diagnostics(uart: &Uart0) {
+pub(crate) fn write_osal_diagnostics(uart: &Uart0) {
     let mut waits = [hisi_rf::ws63::OsalWaitDiagnostic::default(); 16];
     let wait_count = hisi_rf::ws63::osal_wait_diagnostics(&mut waits);
     for wait in &waits[..wait_count] {

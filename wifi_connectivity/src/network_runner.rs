@@ -473,6 +473,7 @@ pub(super) async fn run(
     }
     uart.write(b"\r\n");
     super::write_rtos_task_diagnostics(uart);
+    super::write_osal_diagnostics(uart);
     uart.write(b"A4_NET_RUNNER_STEADY lease=managed neighbor_cache=managed\r\n");
     uart.flush_tx();
 
