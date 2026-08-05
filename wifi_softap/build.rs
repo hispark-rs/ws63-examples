@@ -15,5 +15,6 @@ fn main() {
         println!("cargo:rustc-link-arg=--wrap=hmac_tx_lan_to_wlan_no_tcp_opt_etc");
         println!("cargo:rustc-link-arg=--wrap=hmac_tx_process_data");
         println!("cargo:rustc-link-arg=--wrap=hmac_tx_data_send");
+        println!("cargo:rustc-link-arg=--wrap=frw_hmac_send_data");
     }
 }
