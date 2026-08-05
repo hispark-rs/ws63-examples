@@ -195,6 +195,15 @@ fn write_diagnostics(
         uart.write(&hex8(diagnostics.data_hmac_rx_calls));
         uart.write(b" data_vendor_rx=");
         uart.write(&hex8(diagnostics.data_vendor_rx_frames));
+        uart.write(b" hmac_tx_calls=");
+        uart.write(&hex8(diagnostics.data_hmac_tx.0));
+        uart.write(b" hmac_tx_last=");
+        uart.write(&hex8(diagnostics.data_hmac_tx.1));
+        uart.write(b" hmac_tx_status=");
+        for status in diagnostics.data_hmac_tx.2 {
+            uart.write(&hex8(status));
+            uart.write(b",");
+        }
         uart.write(b" psm_found=");
         uart.write(&hex8(diagnostics.data_psm[0]));
         uart.write(b" psm_vap=");
