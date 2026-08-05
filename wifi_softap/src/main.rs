@@ -245,6 +245,10 @@ fn write_diagnostics(
             uart.write(&hex8(queue));
             uart.write(b",");
         }
+        uart.write(b" dmac_mac_q_status=");
+        uart.write(&hex8(diagnostics.data_dmac_tx_mac_queue_status[0]));
+        uart.write(b" dmac_mac_ext_q_status=");
+        uart.write(&hex8(diagnostics.data_dmac_tx_mac_queue_status[1]));
         uart.write(b" psm_found=");
         uart.write(&hex8(diagnostics.data_psm[0]));
         uart.write(b" psm_vap=");
