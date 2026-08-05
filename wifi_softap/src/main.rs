@@ -176,6 +176,10 @@ fn write_diagnostics(
             uart.write(&hex8(packet_number));
             uart.write(b",");
         }
+        uart.write(b" data_tx_submit_total=");
+        uart.write(&hex8(diagnostics.data_tx_timeline.submission_total));
+        uart.write(b" data_tx_completion_total=");
+        uart.write(&hex8(diagnostics.data_tx_timeline.completion_total));
         uart.write(b" data_tx_status=");
         for status in diagnostics.data_tx_completion_status {
             uart.write(&hex8(status));

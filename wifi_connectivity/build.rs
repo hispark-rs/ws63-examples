@@ -12,6 +12,7 @@ fn main() {
         // Low-disturbance packet-path instrumentation is intentionally owned
         // by this opt-in HIL fixture. Cargo does not propagate a dependency's
         // `rustc-link-arg` to the final binary.
+        println!("cargo:rustc-link-arg=--wrap=hmac_bridge_vap_xmit_etc");
         println!("cargo:rustc-link-arg=--wrap=dmac_tx_complete_event_handler");
         println!("cargo:rustc-link-arg=--wrap=dmac_rx_prepare_data_patch");
         println!("cargo:rustc-link-arg=--wrap=hmac_rx_data_event_adapt");

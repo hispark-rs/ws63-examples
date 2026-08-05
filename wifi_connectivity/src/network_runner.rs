@@ -173,6 +173,8 @@ pub(super) async fn run(
     };
     let dhcp_baseline = device.dhcp_diagnostics();
     let tx_completion_baseline = device.data_path_diagnostics().tx_completion_status;
+    #[cfg(feature = "data-path-diagnostics")]
+    let tx_timeline_baseline = device.data_path_diagnostics().tx_timeline;
 
     let local_target = active_lease.router.unwrap_or(active_lease.server);
     let local_echo = match local_neighbor_probe(
@@ -191,6 +193,13 @@ pub(super) async fn run(
         Ok(value) => value,
         Err(exit) => return exit,
     };
+    #[cfg(feature = "data-path-diagnostics")]
+    write_probe_tx_timeline(
+        uart,
+        device,
+        tx_timeline_baseline.submission_total,
+        tx_timeline_baseline.completion_total,
+    );
     let dns_stats = if active_lease.router.is_some() {
         match dns_probe(
             uart,
@@ -787,6 +796,60 @@ fn write_local_probe_data_path(uart: &Uart0, device: &WifiDevice, sequence: u8, 
     uart.write(b" irq45=0x");
     uart.write(&hex8(data_path.wlmac_irqs));
     uart.write(b"\r\n");
+}
+
+#[cfg(feature = "data-path-diagnostics")]
+fn write_probe_tx_timeline(
+    uart: &Uart0,
+    device: &WifiDevice,
+    submission_start: u32,
+    completion_start: u32,
+) {
+    let timeline = device.data_path_diagnostics().tx_timeline;
+    let retained_submission_start = timeline
+        .submission_total
+        .saturating_sub(timeline.submissions.len() as u32);
+    let retained_completion_start = timeline
+        .completion_total
+        .saturating_sub(timeline.completions.len() as u32);
+    if submission_start < retained_submission_start || completion_start < retained_completion_start
+    {
+        uart.write(b"RFDBG_LOCAL_TX_TIMELINE_TRUNCATED submission_start=0x");
+        uart.write(&hex8(submission_start));
+        uart.write(b" completion_start=0x");
+        uart.write(&hex8(completion_start));
+        uart.write(b"\r\n");
+    }
+
+    let mut index = submission_start.max(retained_submission_start);
+    while index < timeline.submission_total {
+        let slot = index as usize % timeline.submissions.len();
+        uart.write(b"RFDBG_LOCAL_TX_SUBMIT index=0x");
+        uart.write(&hex8(index));
+        uart.write(b" time_ms=0x");
+        uart.write(&hex8(timeline.submission_time_ms[slot]));
+        uart.write(b" echo=0x");
+        uart.write(&hex8(timeline.submissions[slot]));
+        uart.write(b"\r\n");
+        index = index.wrapping_add(1);
+    }
+
+    index = completion_start.max(retained_completion_start);
+    while index < timeline.completion_total {
+        let slot = index as usize % timeline.completions.len();
+        uart.write(b"RFDBG_LOCAL_TX_COMPLETE index=0x");
+        uart.write(&hex8(index));
+        uart.write(b" time_ms=0x");
+        uart.write(&hex8(timeline.completion_time_ms[slot]));
+        uart.write(b" descriptor=0x");
+        uart.write(&hex8(timeline.completions[slot]));
+        uart.write(b" packet_number=0x");
+        uart.write(&hex8(timeline.packet_number_lsb[slot]));
+        uart.write(b" echo=0x");
+        uart.write(&hex8(timeline.completion_echo[slot]));
+        uart.write(b"\r\n");
+        index = index.wrapping_add(1);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -53,6 +53,10 @@ struct NetworkDiagnostics {
     echo_mac_complete_baseline: u32,
     #[cfg(feature = "data-path-diagnostics")]
     echo_mac_complete_latest: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    tx_submission_cursor: u32,
+    #[cfg(feature = "data-path-diagnostics")]
+    tx_completion_cursor: u32,
 }
 
 pub fn run(
@@ -97,6 +101,12 @@ pub fn run(
 
     uart.write(b"RFDBG_SOFTAP_NET_READY ip=192.168.4.1 lease=192.168.4.2 echo=9\r\n");
     let mut diagnostics = NetworkDiagnostics::default();
+    #[cfg(feature = "data-path-diagnostics")]
+    {
+        let timeline = access_point.diagnostics().data_tx_timeline;
+        diagnostics.tx_submission_cursor = timeline.submission_total;
+        diagnostics.tx_completion_cursor = timeline.completion_total;
+    }
     let mut next_diagnostic_ms = crate::monotonic_ms();
     let mut next_task_diagnostic_ms = crate::monotonic_ms();
     loop {
@@ -128,6 +138,8 @@ pub fn run(
             diagnostics.echo_mac_complete_latest = after.mac_tx_complete_interrupts;
             write_echo_path_diagnostics(uart, sequence, before, after);
         }
+        #[cfg(feature = "data-path-diagnostics")]
+        write_new_tx_timeline(uart, access_point.diagnostics(), &mut diagnostics);
 
         let current_ms = crate::monotonic_ms();
         if current_ms.wrapping_sub(next_diagnostic_ms) >= 1_000 {
@@ -344,6 +356,51 @@ fn write_echo_path_diagnostics(
         uart.write(b",");
     }
     uart.write(b"\r\n");
+}
+
+#[cfg(feature = "data-path-diagnostics")]
+fn write_new_tx_timeline(
+    uart: &Uart0<'_>,
+    snapshot: hisi_rf::ws63::AccessPointDiagnostics,
+    diagnostics: &mut NetworkDiagnostics,
+) {
+    let timeline = snapshot.data_tx_timeline;
+    let slots = timeline.submissions.len() as u32;
+    diagnostics.tx_submission_cursor = diagnostics
+        .tx_submission_cursor
+        .max(timeline.submission_total.saturating_sub(slots));
+    while diagnostics.tx_submission_cursor < timeline.submission_total {
+        let index = diagnostics.tx_submission_cursor;
+        let slot = index as usize % timeline.submissions.len();
+        uart.write(b"RFDBG_SOFTAP_TX_SUBMIT index=0x");
+        uart.write(&crate::hex8(index));
+        uart.write(b" time_ms=0x");
+        uart.write(&crate::hex8(timeline.submission_time_ms[slot]));
+        uart.write(b" echo=0x");
+        uart.write(&crate::hex8(timeline.submissions[slot]));
+        uart.write(b"\r\n");
+        diagnostics.tx_submission_cursor = index.wrapping_add(1);
+    }
+
+    diagnostics.tx_completion_cursor = diagnostics
+        .tx_completion_cursor
+        .max(timeline.completion_total.saturating_sub(slots));
+    while diagnostics.tx_completion_cursor < timeline.completion_total {
+        let index = diagnostics.tx_completion_cursor;
+        let slot = index as usize % timeline.completions.len();
+        uart.write(b"RFDBG_SOFTAP_TX_COMPLETE index=0x");
+        uart.write(&crate::hex8(index));
+        uart.write(b" time_ms=0x");
+        uart.write(&crate::hex8(timeline.completion_time_ms[slot]));
+        uart.write(b" descriptor=0x");
+        uart.write(&crate::hex8(timeline.completions[slot]));
+        uart.write(b" packet_number=0x");
+        uart.write(&crate::hex8(timeline.packet_number_lsb[slot]));
+        uart.write(b" echo=0x");
+        uart.write(&crate::hex8(timeline.completion_echo[slot]));
+        uart.write(b"\r\n");
+        diagnostics.tx_completion_cursor = index.wrapping_add(1);
+    }
 }
 
 fn write_network_diagnostics(uart: &Uart0<'_>, diagnostics: &NetworkDiagnostics) {
