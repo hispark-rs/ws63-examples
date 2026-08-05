@@ -1,6 +1,6 @@
 //! WS63 end-to-end connectivity through the public `hisi-rf` facade.
 //!
-//! The application uses one incremental radio runner for initialize, scan,
+//! The application uses one bounded radio runner for initialize, scan,
 //! association, DHCP, repeated ICMP, and lease renewal. RF integration crates
 //! remain transitive implementation details.
 
@@ -25,8 +25,8 @@ use hisi_panic_handler as _;
 #[cfg(feature = "wpa3")]
 use hisi_rf::SaePwe;
 use hisi_rf::ws63::{
-    IncrementalRadioParts, IncrementalRadioRunner, RunnerDiagnosticsSnapshot, SelectedProfile,
-    WaitDiagnosticsSnapshot, WifiDevice, declare_radio_storage,
+    RadioParts, RadioRunner, RunnerDiagnosticsSnapshot, SelectedProfile, WaitDiagnosticsSnapshot,
+    WifiDevice, declare_radio_storage,
 };
 use hisi_rf::{
     DiagnosticCode, Error as WifiError, IncrementalDriverEvent, Passphrase, ScanConfig,
@@ -55,7 +55,7 @@ static RTOS_ARENA: hisi_rtos::SchedulerArena<{ hisi_rf::ws63::SELECTED_RUNTIME_A
     hisi_rtos::SchedulerArena::new();
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 static UART: StaticCell<Uart0> = StaticCell::new();
-static RADIO_PARTS: StaticCell<IncrementalRadioParts> = StaticCell::new();
+static RADIO_PARTS: StaticCell<RadioParts> = StaticCell::new();
 
 hisi_rtos::bind_interrupts!(struct RtosIrqs {
     TIMER_INT0 => hisi_rtos::ws63::TimerInterrupt;
@@ -135,8 +135,8 @@ fn main() -> ! {
 }
 
 #[inline(never)]
-fn start_executor(parts: &'static mut IncrementalRadioParts, uart: &'static Uart0) -> ! {
-    let IncrementalRadioParts { wifi, runner } = parts;
+fn start_executor(parts: &'static mut RadioParts, uart: &'static Uart0) -> ! {
+    let RadioParts { wifi, runner } = parts;
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner: Spawner| {
         spawner.spawn(radio_runner(runner, uart).unwrap());
@@ -145,7 +145,7 @@ fn start_executor(parts: &'static mut IncrementalRadioParts, uart: &'static Uart
 }
 
 #[embassy_executor::task]
-async fn radio_runner(runner: &'static mut IncrementalRadioRunner, uart: &'static Uart0) {
+async fn radio_runner(runner: &'static mut RadioRunner, uart: &'static Uart0) {
     loop {
         let ready = runner.wait_ready().await.expect("infallible WS63 wait");
         let started = monotonic_ms();

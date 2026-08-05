@@ -54,7 +54,7 @@ name = "blinky"
 version = "0.1.0"
 dependencies = [
  "embedded-hal 1.0.0",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-riscv-rt 0.5.7",
  "riscv",
  "ws63-pac",
@@ -615,7 +615,7 @@ checksum = "fdc966b600ba8e8d5d944cc6bd93e10e519715042ad46b657b151d7eef5cc761"
 dependencies = [
  "critical-section",
  "hisi-crypto",
- "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-rom-sys",
  "ws63-pac",
  "zeroize",
@@ -624,6 +624,8 @@ dependencies = [
 [[package]]
 name = "hisi-hal"
 version = "0.7.0-alpha.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa948b076893aa7e24d6a48297b53d2cb7f2dac361b933cf87595b61e27a29cd"
 dependencies = [
  "bs2x-pac",
  "cfg-if",
@@ -640,9 +642,7 @@ dependencies = [
 
 [[package]]
 name = "hisi-hal"
-version = "0.7.0-alpha.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa948b076893aa7e24d6a48297b53d2cb7f2dac361b933cf87595b61e27a29cd"
+version = "0.7.0-alpha.7"
 dependencies = [
  "bs2x-pac",
  "cfg-if",
@@ -678,9 +678,9 @@ checksum = "82838ac70a30951282f15df5741eeb38f748f5347d419c91b93751ceccc49876"
 
 [[package]]
 name = "hisi-rf"
-version = "0.1.0-alpha.82"
+version = "0.1.0-alpha.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e4cde1563720ac27fc844d4e5d1cb0e0c2a490e69548fd31ff0219b08edac7"
+checksum = "a8a01af5db0033c069371035075c88843a69718e868dfb2678aa2a2aa8d43e0f"
 dependencies = [
  "hisi-rf-core",
  "hisi-rf-ws63",
@@ -712,9 +712,9 @@ dependencies = [
 
 [[package]]
 name = "hisi-rf-ws63"
-version = "0.1.0-alpha.70"
+version = "0.1.0-alpha.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7489c841b99faf5fff6e66d6d8491a12d006bf14b6e5355393007c91e84cccf"
+checksum = "0e6f6faf3434521fee5631d14b0dfb80c582a1f6cb18cbe8f3cc7411abeea1ba"
 dependencies = [
  "ar_archive_writer",
  "critical-section",
@@ -723,7 +723,7 @@ dependencies = [
  "hisi-alloc 0.1.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-crypto",
  "hisi-crypto-ws63",
- "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-nvs",
  "hisi-rf-core",
  "hisi-rf-rtos-driver",
@@ -781,7 +781,7 @@ dependencies = [
  "embassy-time-driver",
  "embassy-time-queue-utils",
  "hisi-alloc 0.1.0-alpha.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-rf-rtos-driver",
 ]
 
@@ -1136,7 +1136,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.3",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1151,7 +1151,7 @@ dependencies = [
  "embassy-executor",
  "embassy-time",
  "hisi-alloc 0.1.0-alpha.3",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1165,7 +1165,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.3",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1178,7 +1178,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.3",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1191,7 +1191,7 @@ version = "0.1.0"
 dependencies = [
  "critical-section",
  "hisi-alloc 0.1.0-alpha.3",
- "hisi-hal 0.7.0-alpha.6",
+ "hisi-hal 0.7.0-alpha.7",
  "hisi-panic-handler 0.1.0",
  "hisi-rf-rtos-driver",
  "hisi-riscv-rt 0.5.7",
@@ -1538,7 +1538,7 @@ version = "0.1.0"
 dependencies = [
  "embassy-executor",
  "embassy-time",
- "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf",
  "hisi-riscv-rt 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1551,7 +1551,7 @@ dependencies = [
 name = "wifi_softap"
 version = "0.1.0"
 dependencies = [
- "hisi-hal 0.7.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hisi-hal 0.7.0-alpha.6",
  "hisi-panic-handler 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hisi-rf",
  "hisi-riscv-rt 0.5.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1597,7 +1597,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "ws63-pac"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "critical-section",
  "riscv",

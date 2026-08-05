@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated both Wi-Fi fixtures to `hisi-rf 0.1.0-alpha.83`. The station
+  example now selects the complete bounded runner through its named profile,
+  without opting into implementation features, and uses the facade's neutral
+  `RadioParts` / `RadioRunner` lifecycle names.
+
 - Added SoftAP scheduler diagnostics for priority/policy mutations of a
   detached pending switch target, so HIL can distinguish a constructible RTOS
   ownership defect from a trigger observed on silicon.
