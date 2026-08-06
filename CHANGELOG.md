@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+- Updated both Wi-Fi fixtures to `hisi-rf 0.1.0-alpha.84`, closing the
+  release chain over `hisi-rf-ws63 0.1.0-alpha.72` and the normalized BLE
+  archive contract in `ws63-radio-sys 0.1.0-alpha.12`.
 - Updated both Wi-Fi fixtures to `hisi-rf 0.1.0-alpha.83`. The station
   example now selects the complete bounded runner through its named profile,
   without opting into implementation features, and uses the facade's neutral
