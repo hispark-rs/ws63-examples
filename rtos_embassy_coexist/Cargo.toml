@@ -5,6 +5,9 @@ edition = "2024"
 description = "WS63 HIL for one RTOS scheduler hosting Embassy and native tasks"
 license = "MIT"
 
+[features]
+model-timeline = []
+
 [[bin]]
 name = "rtos_embassy_coexist"
 path = "src/main.rs"

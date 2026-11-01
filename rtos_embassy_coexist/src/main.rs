@@ -26,6 +26,9 @@ use static_cell::StaticCell;
 const HEAP_SIZE: usize = 48 * 1024;
 const STACK_SIZE: usize = 4 * 1024;
 
+#[cfg(feature = "model-timeline")]
+mod timeline;
+
 #[repr(C, align(16))]
 struct Arena(UnsafeCell<[u8; HEAP_SIZE]>);
 
@@ -72,6 +75,8 @@ fn write_u32(uart: &Uart<'_, hisi_hal::peripherals::Uart0<'_>>, mut value: u32) 
 
 extern "C" fn native_worker(_: *mut c_void) -> *mut c_void {
     loop {
+        #[cfg(feature = "model-timeline")]
+        timeline::record(b'N', 0);
         critical_section::with(|cs| {
             NATIVE_TICKS
                 .borrow(cs)
@@ -85,6 +90,8 @@ extern "C" fn native_worker(_: *mut c_void) -> *mut c_void {
 async fn embassy_worker() {
     loop {
         Timer::after_millis(11).await;
+        #[cfg(feature = "model-timeline")]
+        timeline::record(b'E', 0);
         critical_section::with(|cs| {
             EMBASSY_TICKS
                 .borrow(cs)
@@ -95,7 +102,11 @@ async fn embassy_worker() {
 
 #[embassy_executor::task]
 async fn reporter(uart: Uart<'static, hisi_hal::peripherals::Uart0<'static>>) {
+    #[cfg(feature = "model-timeline")]
+    timeline::record(b'S', 120);
     Timer::after_millis(120).await;
+    #[cfg(feature = "model-timeline")]
+    timeline::record(b'R', 0);
     let (native, embassy) = critical_section::with(|cs| {
         (
             NATIVE_TICKS.borrow(cs).get(),
@@ -112,9 +123,18 @@ async fn reporter(uart: Uart<'static, hisi_hal::peripherals::Uart0<'static>>) {
     write_u32(&uart, diagnostics.timer_interrupts);
     uart.write(b" context_switches=");
     write_u32(&uart, diagnostics.context_switches);
+    uart.write(b" software_irqs=");
+    write_u32(&uart, diagnostics.software_interrupts);
     uart.write(b"\r\n");
 
-    if native >= 8 && embassy >= 6 && diagnostics.timer_interrupts != 0 {
+    #[cfg(feature = "model-timeline")]
+    timeline::dump(&uart);
+
+    if native >= 8
+        && embassy >= 6
+        && diagnostics.timer_interrupts != 0
+        && diagnostics.software_interrupts != 0
+    {
         uart.write(b"\r\nA3_RTOS_EMBASSY_COEXIST_OK\r\n");
     } else {
         uart.write(b"\r\nA3_RTOS_EMBASSY_COEXIST_FAIL\r\n");
@@ -127,6 +147,8 @@ async fn reporter(uart: Uart<'static, hisi_hal::peripherals::Uart0<'static>>) {
 
 #[unsafe(no_mangle)]
 extern "C" fn TIMER_INT0() {
+    #[cfg(feature = "model-timeline")]
+    timeline::record(b'I', 0);
     TimerAlarm0::clear_interrupt();
     hisi_rtos::interrupt_enter();
     hisi_rtos::on_timer_interrupt();
@@ -135,6 +157,8 @@ extern "C" fn TIMER_INT0() {
 
 #[unsafe(no_mangle)]
 extern "C" fn SOFT_INT0() {
+    #[cfg(feature = "model-timeline")]
+    timeline::record(b'W', 0);
     SoftwareInterrupt0::clear_interrupt();
     hisi_rtos::interrupt_enter();
     hisi_rtos::on_software_interrupt();
@@ -171,7 +195,7 @@ fn main() -> ! {
         },
         hisi_rtos::SchedulerPort {
             max_timer_delay: NonZeroU32::new(TimerAlarm0::MAX_DELAY_MS).unwrap(),
-            arm_timer: TimerAlarm0::arm_millis,
+            arm_timer,
             disarm_timer: TimerAlarm0::disarm,
             pend_reschedule: SoftwareInterrupt0::pend_interrupt,
             contract_violation: rtos_contract_violation,
@@ -209,4 +233,10 @@ fn main() -> ! {
         spawner.spawn(embassy_worker().unwrap());
         spawner.spawn(reporter(uart).unwrap());
     });
+}
+
+fn arm_timer(delay: NonZeroU32) {
+    #[cfg(feature = "model-timeline")]
+    timeline::record(b'A', delay.get());
+    TimerAlarm0::arm_millis(delay);
 }
