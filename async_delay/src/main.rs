@@ -21,6 +21,9 @@ use hisi_hal::timer::{self, AsyncDelay, TimerChannel};
 use hisi_hal::uart::{Config, Uart};
 use hisi_riscv_rt::entry;
 
+#[cfg(feature = "lifecycle-check")]
+mod lifecycle;
+
 // Direct-mode trap: save caller-saved regs, dispatch in Rust, restore, mret.
 core::arch::global_asm!(
     ".section .text.atrap, \"ax\"",
@@ -108,6 +111,14 @@ fn main() -> ! {
     unsafe {
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize); // direct mode
         interrupt::init();
+    }
+    #[cfg(feature = "lifecycle-check")]
+    if !lifecycle::check(&mut delay, &uart) {
+        loop {
+            core::hint::spin_loop();
+        }
+    }
+    unsafe {
         interrupt::enable_global();
     }
 
