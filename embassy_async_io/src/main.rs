@@ -109,7 +109,13 @@ fn main() -> ! {
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize);
         interrupt::init();
         // This standalone platform owns the clock epoch, TIMER and TCXO.
-        assert!(hisi_rtos::embassy::init(hisi_hal::timer::TimerDriver::new(hisi_hal::peripherals::Timer::steal()), tcxo).is_ok());
+        assert!(
+            hisi_rtos::embassy::init(
+                hisi_hal::timer::TimerDriver::new(hisi_hal::peripherals::Timer::steal()),
+                tcxo
+            )
+            .is_ok()
+        );
         interrupt::enable_global();
     }
 
