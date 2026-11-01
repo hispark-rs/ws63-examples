@@ -17,6 +17,10 @@ uv run --script scripts/test-hal-irq-wait-qemu.py --qemu <qemu-system-riscv32> \
   --lifecycle --output <new-report.json>
 ```
 
+Repeat with `async_delay/lifecycle-channel1` or `async_delay/lifecycle-channel2`
+and pass `--channel 1` or `--channel 2` to the runner. Each profile keeps the same
+whole-TIMER ownership and checks its selected IRQ before five real trap-driven waits.
+
 Use the model and HAL revisions recorded by the parent evidence ledger. This
 does not measure physical timing or prove arbitrary ISR/WFI races. It does not
 flash hardware; do not treat the opt-in profile as a new silicon acceptance test.

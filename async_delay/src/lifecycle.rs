@@ -6,9 +6,9 @@ use core::{
 };
 use embedded_hal_async::delay::DelayNs;
 use hisi_hal::{
-    interrupt::{self, Interrupt},
+    interrupt::{self},
     peripherals::{Timer, Uart0},
-    timer::{self, AsyncDelay, TimerChannel},
+    timer::{self, AsyncDelay},
     uart::Uart,
 };
 
@@ -16,6 +16,9 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
     // SAFETY: fixture only observes the singleton TIMER registers; AsyncDelay
     // owns writes. No other driver runs, and global IRQs are disabled by main.
     let regs = unsafe { &*Timer::ptr() };
+    uart.write(b"TIMER CHANNEL: ");
+    super::put_u32(uart, super::CHANNEL.index() as u32);
+    uart.write(b"\r\n");
     macro_rules! require {
         ($ok:expr, $name:literal) => {
             if !$ok {
@@ -26,24 +29,27 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
     }
     let mut cx = Context::from_waker(Waker::noop());
     let stopped = || {
-        regs.timer0_control(0).read().bits() & 9 == 8
-            && regs.timer0_raw_intr(0).read().bits() & 1 == 0
-            && !interrupt::is_enabled(Interrupt::TIMER_INT0)
-            && !interrupt::is_pending(Interrupt::TIMER_INT0)
+        regs.timer0_control(super::CHANNEL.index()).read().bits() & 9 == 8
+            && regs.timer0_raw_intr(super::CHANNEL.index()).read().bits() & 1 == 0
+            && !interrupt::is_enabled(super::TIMER_IRQ)
+            && !interrupt::is_pending(super::TIMER_IRQ)
     };
 
     {
         let future = delay.delay_ms(1_000);
         let mut future = core::pin::pin!(future);
         require!(future.as_mut().poll(&mut cx).is_pending(), "initial poll");
-        require!(regs.timer0_control(0).read().bits() & 9 == 1, "armed");
+        require!(
+            regs.timer0_control(super::CHANNEL.index()).read().bits() & 9 == 1,
+            "armed"
+        );
     } // Drop the actual pinned Future, not just a Pin<&mut _>.
     require!(stopped(), "cancel leaves timer or IRQ active");
 
-    let before = regs.timer0_load_count(0).read().bits();
+    let before = regs.timer0_load_count(super::CHANNEL.index()).read().bits();
     drop(delay.delay_ms(1));
     require!(
-        stopped() && regs.timer0_load_count(0).read().bits() == before,
+        stopped() && regs.timer0_load_count(super::CHANNEL.index()).read().bits() == before,
         "unpolled wait changed hardware"
     );
     {
@@ -54,7 +60,7 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
         );
     }
     require!(
-        stopped() && regs.timer0_load_count(0).read().bits() == before,
+        stopped() && regs.timer0_load_count(super::CHANNEL.index()).read().bits() == before,
         "zero changed registers"
     );
 
@@ -62,12 +68,12 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
         let mut future = core::pin::pin!(delay.delay_ms(1_000));
         require!(future.as_mut().poll(&mut cx).is_pending(), "reuse poll");
         require!(
-            regs.timer0_raw_intr(0).read().bits() & 1 == 0,
+            regs.timer0_raw_intr(super::CHANNEL.index()).read().bits() & 1 == 0,
             "long period unexpectedly expired"
         );
-        timer::on_interrupt(TimerChannel::Channel0); // deliberate empty IRQ hook
+        timer::on_interrupt(super::CHANNEL); // deliberate empty IRQ hook
         require!(
-            regs.timer0_control(0).read().bits() & 1 != 0,
+            regs.timer0_control(super::CHANNEL.index()).read().bits() & 1 != 0,
             "empty IRQ stopped timer"
         );
         require!(
@@ -80,7 +86,7 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
         let mut tiny = core::pin::pin!(delay.delay_ns(43));
         require!(tiny.as_mut().poll(&mut cx).is_pending(), "tiny wait");
         require!(
-            regs.timer0_load_count(0).read().bits() == 2,
+            regs.timer0_load_count(super::CHANNEL.index()).read().bits() == 2,
             "nanosecond rounding shortened delay"
         );
     }
@@ -89,7 +95,7 @@ pub fn check(delay: &mut AsyncDelay<'_>, uart: &Uart<'_, Uart0<'_>>) -> bool {
         let mut long = core::pin::pin!(delay.delay_ms(u32::MAX));
         require!(long.as_mut().poll(&mut cx).is_pending(), "long wait");
         require!(
-            regs.timer0_load_count(0).read().bits() == u32::MAX,
+            regs.timer0_load_count(super::CHANNEL.index()).read().bits() == u32::MAX,
             "long period not chunked"
         );
     }

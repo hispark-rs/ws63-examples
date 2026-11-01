@@ -72,14 +72,26 @@ unsafe extern "C" {
     fn atrap();
 }
 
-const TIMER_INT0: u32 = 26;
+#[cfg(all(feature = "lifecycle-channel1", feature = "lifecycle-channel2"))]
+compile_error!("select only one timer lifecycle channel");
+#[cfg(feature = "lifecycle-channel1")]
+const CHANNEL: TimerChannel = TimerChannel::Channel1;
+#[cfg(feature = "lifecycle-channel2")]
+const CHANNEL: TimerChannel = TimerChannel::Channel2;
+#[cfg(not(any(feature = "lifecycle-channel1", feature = "lifecycle-channel2")))]
+const CHANNEL: TimerChannel = TimerChannel::Channel0;
+const TIMER_IRQ: interrupt::Interrupt = match CHANNEL {
+    TimerChannel::Channel0 => interrupt::Interrupt::TIMER_INT0,
+    TimerChannel::Channel1 => interrupt::Interrupt::TIMER_INT1,
+    TimerChannel::Channel2 => interrupt::Interrupt::TIMER_INT2,
+};
 
 #[unsafe(no_mangle)]
 extern "C" fn atrap_handle() {
     let mcause: u32;
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
-    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == TIMER_INT0 {
-        timer::on_interrupt(TimerChannel::Channel0); // EOI + stop one-shot + wake the AsyncDelay future
+    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == TIMER_IRQ as u32 {
+        timer::on_interrupt(CHANNEL); // EOI + stop one-shot + wake the AsyncDelay future
     }
 }
 
@@ -106,7 +118,7 @@ fn main() -> ! {
     let uart = Uart::new_uart0(p.UART0, Config::default());
     uart.write(b"\r\nWS63 async delay (embedded-hal-async DelayNs on TIMER0)\r\n");
 
-    let mut delay = AsyncDelay::new(p.TIMER, TimerChannel::Channel0);
+    let mut delay = AsyncDelay::new(p.TIMER, CHANNEL);
 
     unsafe {
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize); // direct mode

@@ -8,6 +8,8 @@ license = "MIT"
 [features]
 # QEMU regression profile; no new silicon timing/restore qualification implied.
 lifecycle-check = []
+lifecycle-channel1 = ["lifecycle-check"]
+lifecycle-channel2 = ["lifecycle-check"]
 
 [[bin]]
 name = "async_delay"
