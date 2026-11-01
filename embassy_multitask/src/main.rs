@@ -2,14 +2,14 @@
 //!
 //! Runs `embassy-executor` (platform-riscv32, thread mode) with two async tasks
 //! that `embassy_time::Timer::after_millis(..).await` at different rates. Time
-//! comes from `hisi_hal::embassy` — the WS63 embassy-time `Driver` (now() via the
-//! TCXO 64-bit counter, alarms via a TIMER channel). This proves full embassy
+//! comes from `hisi_rtos::embassy` — the WS63 embassy-time `Driver` (now() via the
+//! TCXO 64-bit counter, alarms via a TIMER channel). This exercises embassy
 //! adaptation on the single-core, no-atomics WS63 (atomics via portable-atomic +
 //! critical-section).
 //!
-//! The HAL time-driver does not install a trap handler, so this example owns its
+//! The RTOS standalone time profile does not install a trap handler, so this example owns its
 //! `mtvec` and routes the alarm channel's IRQ (TIMER_INT0 = 26) to
-//! `hisi_hal::embassy::on_alarm_interrupt`.
+//! `hisi_rtos::embassy::on_alarm_interrupt`.
 
 #![no_std]
 #![no_main]
@@ -77,10 +77,10 @@ unsafe extern "C" {
 extern "C" fn atrap_handle() {
     let mcause: u32;
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
-    // Compare against the HAL's chip-correct alarm IRQ (WS63 = 26, BS2X = 53) rather
+    // Compare against the profile's chip-correct alarm IRQ (WS63 = 26, BS2X = 53) rather
     // than a hardcoded literal — the example stays correct across chips.
-    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == hisi_hal::embassy::ALARM_IRQ {
-        hisi_hal::embassy::on_alarm_interrupt(); // embassy-time alarm fired
+    if (mcause & 0x8000_0000) != 0 && (mcause & 0xFFF) == hisi_rtos::embassy::ALARM_IRQ {
+        hisi_rtos::embassy::on_alarm_interrupt(); // embassy-time alarm fired
     }
 }
 
@@ -125,6 +125,8 @@ fn main() -> ! {
     unsafe {
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize); // direct mode
         interrupt::init();
+        // This standalone platform owns the clock epoch, TIMER and TCXO.
+        assert!(hisi_rtos::embassy::init(hisi_hal::timer::TimerDriver::new(p.TIMER), tcxo).is_ok());
         interrupt::enable_global();
     }
 

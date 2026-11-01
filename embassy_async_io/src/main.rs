@@ -59,7 +59,7 @@ extern "C" fn atrap_handle() {
     unsafe { core::arch::asm!("csrr {0}, mcause", out(reg) mcause) };
     if (mcause & 0x8000_0000) != 0 {
         match mcause & 0xFFF {
-            26 => hisi_hal::embassy::on_alarm_interrupt(), // embassy-time alarm
+            26 => hisi_rtos::embassy::on_alarm_interrupt(), // embassy-time alarm
             33 => hisi_hal::gpio::on_interrupt(hisi_hal::gpio::GpioBank::Bank0), // GPIO0 edge
             _ => {}
         }
@@ -108,6 +108,8 @@ fn main() -> ! {
         core::ptr::write_volatile(GPIO_OEN, 0); // GPIO0 pin0 = output (drives loopback)
         core::arch::asm!("csrw mtvec, {0}", in(reg) atrap as *const () as usize);
         interrupt::init();
+        // This standalone platform owns the clock epoch, TIMER and TCXO.
+        assert!(hisi_rtos::embassy::init(hisi_hal::timer::TimerDriver::new(hisi_hal::peripherals::Timer::steal()), tcxo).is_ok());
         interrupt::enable_global();
     }
 
